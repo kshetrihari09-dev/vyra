@@ -1,0 +1,21 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
+:root { color-scheme: light; }
+html, body { margin: 0; padding: 0; background: #F8FCFB; -webkit-font-smoothing: antialiased; }
+body { font-family: 'Poppins', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+img, svg { max-width: 100%; }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+input[type=range] { height: 4px; border-radius: 999px; background: #E5F0EE; }
+::selection { background: #0FAF8F33; }
+
+/* Seller dashboard — shared focus ring + numerals. The accent comes from the
+   active theme via --s-accent, set on the seller root. */
+.seller-root :focus-visible { outline: 2px solid var(--s-accent, #0FAF8F); outline-offset: 2px; }
+.seller-root { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 14px; }
+.seller-root .tnum { font-variant-numeric: tabular-nums; }
+.seller-root .s-heading { font-family: 'Poppins', 'Inter', system-ui, sans-serif; }
+.seller-root table { border-collapse: separate; border-spacing: 0; }
+@media (prefers-reduced-motion: reduce) { .seller-root * { transition: none !important; animation: none !important; } }

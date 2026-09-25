@@ -1,0 +1,114 @@
+/* ==========================================================================
+   API client — the only place that talks to the backend over HTTP.
+
+   • Access token lives in memory only (never localStorage), so an XSS bug can't
+     read it from storage. The long-lived refresh token is an httpOnly cookie the
+     browser sends by itself; JavaScript never sees it.
+   • On a 401 the client refreshes once (single-flight, so parallel requests
+     share one refresh) and replays the request.
+   • Every call resolves to the `data` of { success: true, data } or throws ApiError.
+   ========================================================================== */
+
+const BASE = (import.meta.env?.VITE_API_URL || "/api").replace(/\/+$/, "");
+
+export class ApiError extends Error {
+  constructor(status, code, message, details) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+    this.details = details;
+  }
+  /** { mobile: "message", email: "message" } — the shape the existing forms already use for `errors`. */
+  get fieldErrors() {
+    const out = {};
+    for (const d of Array.isArray(this.details) ? this.details : []) {
+      const key = String(d.path || "").split(".").pop();
+      if (key && !out[key]) out[key] = d.message;
+    }
+    return out;
+  }
+}
+
+let accessToken = null;
+let onSessionLost = null;
+
+export const setAccessToken = (t) => { accessToken = t || null; };
+export const hasAccessToken = () => !!accessToken;
+/** Called when the session can't be refreshed (expired / revoked) so the app can sign the user out. */
+export const setSessionLostHandler = (fn) => { onSessionLost = fn; };
+
+async function send(path, { method = "GET", body, auth = true, query } = {}) {
+  const qs = query ? "?" + new URLSearchParams(Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== "")).toString() : "";
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}${qs}`, {
+      method,
+      credentials: "include",
+      headers: {
+        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+        "X-Vyra-Client": "web",
+        ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new ApiError(0, "NETWORK_ERROR", "Can't reach the server. Check your connection and try again.");
+  }
+  let json = null;
+  try { json = await res.json(); } catch { /* empty / non-JSON body */ }
+  if (res.ok && json?.success) return json.data;
+  throw new ApiError(res.status, json?.code || "UNKNOWN_ERROR", json?.message || `Request failed (${res.status})`, json?.details);
+}
+
+let refreshing = null;
+
+/** Exchanges the refresh cookie for a new access token. Returns the session payload ({ user, accessToken }). */
+export function refreshSession() {
+  refreshing ??= (async () => {
+    try {
+      let data;
+      try {
+        data = await send("/auth/refresh", { method: "POST", auth: false });
+      } catch (err) {
+        // Another tab rotated the cookie a moment ago; its fresh cookie is already in the browser — try once more.
+        if (err.code !== "REFRESH_TOKEN_ROTATED") throw err;
+        await new Promise((r) => setTimeout(r, 300));
+        data = await send("/auth/refresh", { method: "POST", auth: false });
+      }
+      setAccessToken(data.accessToken);
+      return data;
+    } catch (err) {
+      setAccessToken(null);
+      throw err;
+    } finally {
+      refreshing = null;
+    }
+  })();
+  return refreshing;
+}
+
+const AUTH_EXPIRED = new Set(["UNAUTHENTICATED", "INVALID_TOKEN"]);
+
+export async function request(path, opts = {}) {
+  try {
+    return await send(path, opts);
+  } catch (err) {
+    if (opts.auth === false || err.status !== 401 || !AUTH_EXPIRED.has(err.code)) throw err;
+    try {
+      await refreshSession();
+    } catch {
+      onSessionLost?.();
+      throw err;
+    }
+    return send(path, opts); // replay once with the new token
+  }
+}
+
+export const api = {
+  get: (path, query) => request(path, { query }),
+  post: (path, body, opts) => request(path, { method: "POST", body: body ?? {}, ...opts }),
+  put: (path, body) => request(path, { method: "PUT", body: body ?? {} }),
+  patch: (path, body) => request(path, { method: "PATCH", body: body ?? {} }),
+  delete: (path) => request(path, { method: "DELETE" }),
+};

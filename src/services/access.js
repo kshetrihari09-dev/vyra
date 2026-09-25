@@ -1,0 +1,49 @@
+/* Role resolution — one place that answers "who is this, and which shell may
+   they see?". It reads the existing session and shop-application state; it
+   does not add a second auth system.
+
+     customer   → /customer/*
+     shop owner → /customer/* and /shop/* (their own shop only)
+     staff      → the demo/reviewer identity: may preview any shop */
+
+import { areaOf } from "./router.js";
+
+export function approvedApplication(session, shopApplications = []) {
+  const phone = session?.user?.phone;
+  if (!phone) return null;
+  return shopApplications.find((a) => a.status === "approved" && a.sellerId && a.owner?.mobile === phone) || null;
+}
+
+/** The seller record this session owns, if any. Derived, so signing in again
+    after approval still finds the shop. */
+export function ownedSellerId(session, shopApplications) {
+  return session?.shopOwnerSellerId || approvedApplication(session, shopApplications)?.sellerId || null;
+}
+
+export function roleOf(session, shopApplications) {
+  if (ownedSellerId(session, shopApplications)) return "shop_owner";
+  if (session?.isStaff) return "staff";
+  return "customer";
+}
+
+/** Which shop the dashboard shows. Shop owners are locked to their own shop;
+    staff can preview any (existing demo behaviour). */
+export function resolveSeller({ session, shopApplications, sellers, currentSellerId }) {
+  const owned = ownedSellerId(session, shopApplications);
+  if (owned) {
+    const seller = sellers.find((s) => s.id === owned);
+    return seller ? { seller, locked: true } : null;
+  }
+  if (session?.isStaff) {
+    const seller = sellers.find((s) => s.id === currentSellerId) || sellers[0];
+    return seller ? { seller, locked: false } : null;
+  }
+  return null;
+}
+
+/** Route guard. Returns { ok: true } or { ok: false, reason }. */
+export function checkAccess(view, session, shopApplications, sellers, currentSellerId) {
+  if (areaOf(view) !== "shop") return { ok: true };
+  const resolved = resolveSeller({ session, shopApplications, sellers, currentSellerId });
+  return resolved ? { ok: true } : { ok: false, reason: "not_shop_owner" };
+}

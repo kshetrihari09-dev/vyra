@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.vercel/
+.DS_Store
+
+# env files (never commit secrets; the *.example files are the templates)
+.env
+.env.*
+!.env.example
+backend/.env
