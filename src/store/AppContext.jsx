@@ -496,7 +496,7 @@ export function AppProvider({ children }) {
     async logout() { try { await authApi.logout(); } finally { dispatch({ type: "SIGN_OUT" }); } },
   }), []);
 
-  const notifications = useMemo(() => ({
+  const notify = useMemo(() => ({
     reload: loadNotifications,
     async markRead(id) {
       const { unread } = await notificationsApi.read(id);
@@ -541,7 +541,7 @@ export function AppProvider({ children }) {
     auth,
     catalog,
     commerce,
-    notifications,
+    notify,
     unread: state.notificationsUnread,
     toast,
     cartLines,
@@ -550,7 +550,7 @@ export function AppProvider({ children }) {
     activeProducts,
     myOrders,
     isFirstOrder: myOrders.length === 0,
-  }), [state, cartLines, savedLines, cartCount, activeProducts, myOrders, toast, auth, catalog, commerce, notifications]);
+  }), [state, cartLines, savedLines, cartCount, activeProducts, myOrders, toast, auth, catalog, commerce, notify]);
 
   return (
     <AppCtx.Provider value={value}>
