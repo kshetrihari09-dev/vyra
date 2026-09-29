@@ -9,15 +9,26 @@ import { dateTimeLabel, fmt } from "../../utils/format.js";
 export default function Payouts() {
   const s = useS();
   const { seller, earnings, payouts, paidOut, available, rows } = useShop();
-  const { dispatch, toast } = useApp();
+  const { dispatch, toast, commerce } = useApp();
   const [confirm, setConfirm] = useState(false);
   const canWrite = seller.status === "active";
   const rate = seller.commissionRate;
 
-  const request = () => {
-    dispatch({ type: "SELLER_PAYOUT", payout: { id: `po-${Date.now()}`, sellerId: seller.id, amount: available, at: new Date().toISOString(), method: seller.payoutMethod } });
-    dispatch({ type: "AUDIT", entry: { actor: `${seller.name} (seller)`, action: "Payout requested", detail: fmt(available) } });
-    toast(`Payout of ${fmt(available)} requested`);
+  const [busy, setBusy] = useState(false);
+  const request = async () => {
+    setBusy(true);
+    try {
+      // No amount sent: the server pays out its own view of the available balance (delivered orders, net of
+      // commission, minus everything already requested) — never a figure computed in the browser.
+      const payout = await commerce.requestPayout(seller.id, {});
+      dispatch({ type: "AUDIT", entry: { actor: `${seller.name} (seller)`, action: "Payout requested", detail: fmt(payout.amount) } });
+      toast(`Payout of ${fmt(payout.amount)} requested — awaiting approval`);
+      setConfirm(false);
+    } catch (err) {
+      toast(err.message || "Couldn't request that payout", "danger");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const statement = useMemo(() => salesSeries(rows, "month", 6).filter((m) => m.revenue > 0).reverse().map((m) => ({ ...m, commission: Math.round(m.revenue * rate) / 100, net: Math.round(m.revenue * (100 - rate)) / 100 })), [rows, rate]);

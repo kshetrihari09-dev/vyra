@@ -21,15 +21,21 @@ export function ordersForSeller(orders, products, sellerId) {
   return orders.map((o) => sellerSlice(o, products, sellerId)).filter(Boolean);
 }
 
-/** Net payable to a seller after commission, only counting fulfilled orders. */
+/**
+ * Decision D3 (finding #4): a seller is owed money for DELIVERED orders only, net of commission. Orders still
+ * in flight are reported separately (`pendingGross`) so the dashboard can show them without ever counting
+ * them as earned — the old version counted every non-cancelled order, so a seller could "earn" (and request a
+ * payout on) an order that was later returned or never delivered. The server enforces the same rule
+ * independently when a payout is requested (sellers.repository#availableBalance).
+ */
 export function sellerEarnings(orders, products, seller) {
-  const slices = ordersForSeller(orders, products, seller.id)
-    .filter((s) => !["cancelled", "returned"].includes(s.order.status));
-  const gross = round(slices.reduce((s, x) => s + x.subtotal, 0));
+  const slices = ordersForSeller(orders, products, seller.id);
+  const delivered = slices.filter((s) => s.order.status === "delivered");
+  const inFlight = slices.filter((s) => !["delivered", "cancelled", "returned"].includes(s.order.status));
+  const gross = round(delivered.reduce((s, x) => s + x.subtotal, 0));
   const commission = round(gross * (seller.commissionRate / 100));
   const net = round(gross - commission);
-  const delivered = slices.filter((s) => s.order.status === "delivered").reduce((s, x) => s + x.subtotal, 0);
-  return { gross, commission, net, orderCount: slices.length, deliveredGross: round(delivered) };
+  return { gross, commission, net, orderCount: delivered.length, deliveredGross: gross, pendingGross: round(inFlight.reduce((s, x) => s + x.subtotal, 0)), pendingCount: inFlight.length };
 }
 
 export function sellerListings(products, sellerId) {

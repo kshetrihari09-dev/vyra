@@ -39,7 +39,7 @@ const blank = (seller, categories) => {
 };
 
 export default function ProductForm({ open, product, seller, onClose, onOpenInventory }) {
-  const { categories, products, dispatch, toast } = useApp();
+  const { categories, products, dispatch, toast, catalog } = useApp();
   const s = useS();
   const isNew = !product;
   const start = useMemo(() => (product ? { ...product, images: product.images || [] } : blank(seller, categories)), [product, seller, categories, open]);
@@ -79,31 +79,41 @@ export default function ProductForm({ open, product, seller, onClose, onOpenInve
     return Object.keys(e).length === 0;
   };
 
-  const save = () => {
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
     if (!validate()) { toast("Fix the highlighted fields", "danger"); return; }
-    const brandId = brandByName(brandName)?.id || slugifyBrand(brandName);
+    const existingBrandId = brandByName(brandName)?.id;
     const next = {
-      ...f, name: f.name.trim(), slug: slugify(f.name), brandId, sku: f.sku.trim(), barcode: (f.barcode || "").trim(),
+      ...f, name: f.name.trim(), slug: slugify(f.name), brandId: existingBrandId, brandName: brandName.trim(), sku: f.sku.trim(), barcode: (f.barcode || "").trim(),
       costPrice: Number.isFinite(f.costPrice) && f.costPrice > 0 ? f.costPrice : undefined,
       updatedAt: new Date().toISOString(),
     };
     if (hasVariants) { next.price = Math.min(...f.variants.map((v) => v.price)); next.salePrice = Math.min(...f.variants.map((v) => v.salePrice)); }
-    if (isNew) {
-      dispatch({ type: "PRODUCT_ADD", product: { ...next, stock: {} } });
-      if (!hasVariants && opening > 0) dispatch({ type: "STOCK_ADJUST", productId: next.id, variantId: null, storeId: STORES[0].id, delta: Math.round(opening), reason: "Opening stock", user: `${seller.name} (seller)` });
-      toast("Submitted for review — it goes live once approved");
-    } else {
-      dispatch({ type: "PRODUCT_UPDATE", product: next });
-      toast("Product updated");
+    setSaving(true);
+    try {
+      if (isNew) {
+        // The server pins sellerId to this shop and forces status to pending_review whatever we send —
+        // a seller can't list something live, or under someone else's name, from here or anywhere else.
+        const saved = await catalog.createProduct(next);
+        if (!hasVariants && opening > 0) dispatch({ type: "STOCK_ADJUST", productId: saved.id, variantId: null, storeId: STORES[0].id, delta: Math.round(opening), reason: "Opening stock", user: `${seller.name} (seller)` }); // local only — sellers have no stock endpoint yet
+        toast("Submitted for review — it goes live once approved");
+      } else {
+        await catalog.updateProduct(next);
+        toast("Product updated");
+      }
+      dispatch({ type: "AUDIT", entry: { actor: `${seller.name} (seller)`, action: isNew ? "Product submitted" : "Product updated", detail: next.name } });
+      onClose();
+    } catch (e2) {
+      toast(e2.message || "Couldn't save that product", "danger");
+    } finally {
+      setSaving(false);
     }
-    dispatch({ type: "AUDIT", entry: { actor: `${seller.name} (seller)`, action: isNew ? "Product submitted" : "Product updated", detail: next.name } });
-    onClose();
   };
 
   const err = (k) => errors[k];
   return (
     <Drawer open={open} onClose={onClose} width={640} title={isNew ? "Add product" : "Edit product"} subtitle={isNew ? "New products are reviewed before customers can see them." : f.sku}
-      footer={<><Btn onClick={onClose}>Cancel</Btn><Btn variant="primary" onClick={save}>{isNew ? "Submit for review" : "Save changes"}</Btn></>}>
+      footer={<><Btn onClick={onClose}>Cancel</Btn><Btn variant="primary" onClick={save} disabled={saving}>{saving ? "Saving…" : isNew ? "Submit for review" : "Save changes"}</Btn></>}>
       <Section title="Basic information">
         <div className="space-y-3">
           <Field label="Product name" error={err("name")}><Input value={f.name} onChange={(e) => set({ name: e.target.value })} error={err("name")} placeholder="e.g. Cold brew coffee concentrate" /></Field>

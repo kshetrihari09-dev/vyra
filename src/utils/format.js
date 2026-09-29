@@ -19,3 +19,16 @@ export const dateLabel = (iso) =>
 export const timeLabel = (iso) =>
   new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 export const dateTimeLabel = (iso) => `${dateLabel(iso)} · ${timeLabel(iso)}`;
+
+/** "5m ago" / "3h ago" / "2d ago", falling back to a date once it's old. Used by the notification inbox. */
+export const relativeTime = (iso) => {
+  const diff = Math.max(0, Date.now() - new Date(iso).getTime());
+  const min = Math.floor(diff / 60_000);
+  if (min < 1) return "Just now";
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}d ago`;
+  return dateLabel(iso);
+};

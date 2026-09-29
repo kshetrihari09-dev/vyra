@@ -8,7 +8,7 @@ import { fmt } from "../utils/format.js";
 /** Platform-side seller management: approve applications, review pending
     listings, and see performance across every third-party seller. */
 export default function AdminSellers() {
-  const { sellers, products, orders, dispatch, toast, session } = useApp();
+  const { sellers, products, orders, dispatch, toast, session, commerce, catalog } = useApp();
   const C = useC();
   const [review, setReview] = useState(null);
 
@@ -16,17 +16,25 @@ export default function AdminSellers() {
   const pendingSellers = sellers.filter((s) => s.status === "pending");
   const activeSellers = sellers.filter((s) => s.status !== "pending");
 
-  const setSellerStatus = (id, status) => {
-    dispatch({ type: "SELLER_STATUS", id, status });
-    dispatch({ type: "AUDIT", entry: { actor: session.user.name, action: `Seller ${status}`, detail: id } });
-    toast(`Seller ${status}`);
+  const setSellerStatus = async (id, status) => {
+    try {
+      await commerce.setSellerStatus(id, status);
+      dispatch({ type: "AUDIT", entry: { actor: session.user.name, action: `Seller ${status}`, detail: id } });
+      toast(`Seller ${status}`);
+    } catch (err) {
+      toast(err.message || "Couldn't change that seller's status", "danger");
+    }
   };
 
-  const decideListing = (p, status) => {
-    dispatch({ type: "PRODUCT_UPDATE", product: { ...p, status } });
-    dispatch({ type: "AUDIT", entry: { actor: session.user.name, action: status === "active" ? "Listing approved" : "Listing rejected", detail: p.name } });
-    setReview(null);
-    toast(status === "active" ? "Listing is now live" : "Listing rejected");
+  const decideListing = async (p, status) => {
+    try {
+      await catalog.updateProduct({ ...p, status });
+      dispatch({ type: "AUDIT", entry: { actor: session.user.name, action: status === "active" ? "Listing approved" : "Listing rejected", detail: p.name } });
+      setReview(null);
+      toast(status === "active" ? "Listing is now live" : "Listing rejected");
+    } catch (err) {
+      toast(err.message || "Couldn't save that decision", "danger");
+    }
   };
 
   return (

@@ -12,6 +12,7 @@ import AdminReports from "./Reports.jsx";
 import AdminSellers from "./Sellers.jsx";
 import AdminPurchases from "./Purchases.jsx";
 import AdminShopApplications from "./ShopApplications.jsx";
+import AuditLogPage from "./AuditLog.jsx";
 import { storeById, STORES, ROLES } from "../data/stores.js";
 import { expiringSoon } from "../utils/inventory.js";
 import { fmt, timeAgo } from "../utils/format.js";
@@ -28,6 +29,7 @@ const SECTIONS = [
   { id: "inventory", label: "Inventory", icon: "ClipboardList" },
   { id: "customers", label: "Customers", icon: "Users" },
   { id: "reports", label: "Reports", icon: "TrendingUp" },
+  { id: "auditLog", label: "Audit Log", icon: "History" },
 ];
 
 /** Admin shell. Every section reads and writes the same state the storefront
@@ -60,6 +62,7 @@ export default function Admin({ nav, params }) {
         {section === "inventory" && <AdminInventory />}
         {section === "customers" && <AdminCustomers />}
         {section === "reports" && <AdminReports />}
+        {section === "auditLog" && <AuditLogPage />}
       </div>
     </Page>
   );

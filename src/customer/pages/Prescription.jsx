@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { useApp, useC } from "../../store/AppContext.jsx";
 import { Page } from "../layout/CustomerLayout.jsx";
 import { PageHeader, PillButton, Badge, InlineNotice, EmptyState, Divider } from "../../components/shared/ui.jsx";
 import { FileText, Upload, ShieldCheck, Clock, Check, X, MessageCircle } from "../../components/shared/Icon.jsx";
 import { dateTimeLabel } from "../../utils/format.js";
 import { TONE } from "../../theme.js";
+
+const ACCEPTED = "image/jpeg,image/png,application/pdf";
 
 const STATUS = {
   pending: { tone: "warn", label: "Awaiting pharmacist", icon: Clock },
@@ -15,28 +17,28 @@ const STATUS = {
 /** Prescription is a category module — it only ever appears for products whose
     category declares it, never for groceries or electronics. */
 export default function Prescription({ nav, params }) {
-  const { prescriptions, products, session, dispatch, toast } = useApp();
+  const { prescriptions, products, commerce, dispatch, toast } = useApp();
   const C = useC();
   const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
   const product = params.productId ? products.find((p) => p.id === params.productId) : null;
 
-  const upload = () => {
+  const pickFile = () => fileInputRef.current?.click();
+
+  const onFileChosen = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // lets the same file be picked again later
+    if (!file) return;
     setUploading(true);
-    setTimeout(() => {
-      const rx = {
-        id: `rx-${Math.floor(Math.random() * 900) + 100}`,
-        customer: session.user.name,
-        uploadedAt: new Date().toISOString(),
-        fileName: `prescription-${Date.now()}.jpg`,
-        status: "pending",
-        items: product ? [product.id] : products.filter((p) => p.flags?.prescriptionRequired).map((p) => p.id),
-        pharmacist: null, notes: "",
-      };
-      dispatch({ type: "RX_UPLOAD", rx });
+    try {
+      await commerce.uploadPrescription(file, { productIds: product ? [product.id] : undefined });
       dispatch({ type: "NOTIFY_ADD", notification: { id: `n${Date.now()}`, kind: "prescription", title: "Prescription received", message: "A pharmacist will review it within 30 minutes.", time: "just now", unread: true } });
-      setUploading(false);
       toast("Prescription uploaded for review");
-    }, 900);
+    } catch (err) {
+      toast(err.message || "Couldn't upload that file — try again");
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -58,7 +60,8 @@ export default function Prescription({ nav, params }) {
           <p className="text-xs mt-1 mb-4" style={{ color: C.muted }}>
             A clear photo or PDF showing the doctor's name, registration number, date and your name.
           </p>
-          <PillButton onClick={upload} disabled={uploading}>{uploading ? "Uploading…" : "Choose file"}</PillButton>
+          <input ref={fileInputRef} type="file" accept={ACCEPTED} onChange={onFileChosen} className="hidden" />
+          <PillButton onClick={pickFile} disabled={uploading}>{uploading ? "Uploading…" : "Choose file"}</PillButton>
           <p className="text-[11px] mt-3" style={{ color: C.muted }}>JPG, PNG or PDF · up to 10 MB</p>
         </div>
 

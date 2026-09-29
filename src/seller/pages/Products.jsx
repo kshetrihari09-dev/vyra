@@ -13,7 +13,7 @@ import { fmt } from "../../utils/format.js";
 export default function Products({ nav, params }) {
   const s = useS();
   const { seller, listings, categories } = useShop();
-  const { orders, dispatch, toast } = useApp();
+  const { orders, dispatch, toast, catalog } = useApp();
   const [q, setQ] = useState(params.q || "");
   const [tab, setTab] = useState("all");
   const [cat, setCat] = useState("all");
@@ -46,17 +46,25 @@ export default function Products({ nav, params }) {
     sortAccessors: { name: (r) => r.name.toLowerCase(), price: (r) => r.price, qty: (r) => r.qty, updated: (r) => new Date(r.updated).getTime() },
   });
 
-  const toggle = (r) => {
+  const toggle = async (r) => {
     const next = r.p.status === "active" ? "inactive" : "active";
-    dispatch({ type: "PRODUCT_UPDATE", product: { ...r.p, status: next, updatedAt: new Date().toISOString() } });
-    dispatch({ type: "AUDIT", entry: { actor: `${seller.name} (seller)`, action: next === "active" ? "Product activated" : "Product deactivated", detail: r.name } });
-    toast(next === "active" ? `${r.name} is live` : `${r.name} deactivated`);
+    try {
+      await catalog.updateProduct({ ...r.p, status: next });
+      dispatch({ type: "AUDIT", entry: { actor: `${seller.name} (seller)`, action: next === "active" ? "Product activated" : "Product deactivated", detail: r.name } });
+      toast(next === "active" ? `${r.name} is live` : `${r.name} deactivated`);
+    } catch (err) {
+      toast(err.message || "Couldn't change that product", "danger");
+    }
   };
   const askDelete = (r) => (soldIds.has(r.id) ? setBlocked(r) : setRemoving(r));
-  const doDelete = () => {
-    dispatch({ type: "PRODUCT_REMOVE", id: removing.id });
-    dispatch({ type: "AUDIT", entry: { actor: `${seller.name} (seller)`, action: "Product deleted", detail: removing.name } });
-    toast("Product deleted");
+  const doDelete = async () => {
+    try {
+      await catalog.removeProduct(removing.id);
+      dispatch({ type: "AUDIT", entry: { actor: `${seller.name} (seller)`, action: "Product deleted", detail: removing.name } });
+      toast("Product deleted");
+    } catch (err) {
+      toast(err.message || "Couldn't delete that product", "danger");
+    }
   };
 
   const actions = (r) => (

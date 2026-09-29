@@ -16,12 +16,15 @@ export function useShopData(seller) {
     const rows = buildOrderRows(orders, products, seller.id);
     const earnings = sellerEarnings(orders, products, seller);
     const history = sellerPayouts.filter((p) => p.sellerId === seller.id);
-    const paidOut = history.reduce((s, p) => s + p.amount, 0);
+    // "Paid out" is only what's actually been paid; anything requested-but-not-yet-decided is committed (it
+    // comes off what's available) without being reported as money that has arrived.
+    const paidOut = history.filter((p) => !p.status || p.status === "paid").reduce((s, p) => s + p.amount, 0);
+    const committed = history.filter((p) => p.status !== "rejected").reduce((s, p) => s + p.amount, 0);
     const movements = stockMovements.filter((m) => ids.has(m.productId));
     const inventory = inventoryRowsFor(listings, movements);
     return {
       seller, listings, rows, earnings, payouts: history, paidOut,
-      available: Math.max(Math.round((earnings.net - paidOut) * 100) / 100, 0),
+      available: Math.max(Math.round((earnings.net - committed) * 100) / 100, 0),
       movements, inventory, inventoryTotals: inventoryTotals(inventory),
       customers: buildCustomers(rows), categories,
     };

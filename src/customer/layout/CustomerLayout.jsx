@@ -58,10 +58,9 @@ function StoreSelector({ compact }) {
 }
 
 export function MobileHeader({ nav, query, setQuery }) {
-  const { cartCount, notifications, session, shopApplications } = useApp();
+  const { cartCount, session, shopApplications, unread } = useApp();
   const C = useC();
   const role = roleOf(session, shopApplications);
-  const unread = notifications.filter((n) => n.unread).length;
   return (
     <header className="md:hidden sticky top-0 z-30 px-4 pt-3 pb-3" style={{ background: C.bg, borderBottom: `1px solid ${C.border}` }}>
       <div className="flex items-center gap-2 mb-3">
@@ -83,10 +82,9 @@ export function MobileHeader({ nav, query, setQuery }) {
 }
 
 export function DesktopHeader({ nav, view, query, setQuery }) {
-  const { cartCount, notifications, wishlist, categories, session, shopApplications } = useApp();
+  const { cartCount, wishlist, categories, session, shopApplications, unread } = useApp();
   const C = useC();
   const role = roleOf(session, shopApplications);
-  const unread = notifications.filter((n) => n.unread).length;
   const tops = topCategories(categories).slice(0, 7);
 
   return (

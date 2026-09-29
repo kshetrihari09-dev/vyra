@@ -1,11 +1,12 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useApp, useC } from "../../store/AppContext.jsx";
 import { Page } from "../layout/CustomerLayout.jsx";
-import { PageHeader, PillButton, Badge, Divider, InlineNotice, Sheet, ConfirmDialog } from "../../components/shared/ui.jsx";
-import { OrderTimeline, STATUS_STYLE, ORDER_STAGES, stageIndex } from "../components/OrderTimeline.jsx";
+import { PageHeader, PillButton, Badge, Divider, InlineNotice, ConfirmDialog } from "../../components/shared/ui.jsx";
+import { OrderTimeline, STATUS_STYLE, stageIndex } from "../components/OrderTimeline.jsx";
 import { AddressCard } from "../components/AddressCard.jsx";
 import { ProductArt } from "../../components/shared/ProductArt.jsx";
-import { Icon, Phone, FileText, Headphones, Copy, ShieldCheck, Bike, X, Check } from "../../components/shared/Icon.jsx";
+import { Icon, Phone, FileText, Headphones, Copy, ShieldCheck, Bike, X } from "../../components/shared/Icon.jsx";
+import { deliveryApi } from "../../services/api/deliveryApi.js";
 import { productById } from "../../data/products.js";
 import { storeById, PAYMENT_METHODS } from "../../data/stores.js";
 import { fmt, dateTimeLabel, timeLabel } from "../../utils/format.js";
@@ -18,9 +19,24 @@ export default function OrderDetails({ nav, params }) {
   const C = useC();
   const order = orders.find((o) => o.id === params.orderId);
   const [confirmCancel, setConfirmCancel] = useState(false);
-  const [otpOpen, setOtpOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
 
+  /* Live tracking (Phase 7): the rider's last shared position, only while the order is out for delivery. Polled —
+     the server deletes the location trail when the run ends. */
+  const [tracking, setTracking] = useState(null);
+  const trackable = !!order && stageIndex(order.status) >= stageIndex("assigned") && ![ "delivered", "cancelled", "returned" ].includes(order.status);
+  useEffect(() => {
+    if (!trackable) { setTracking(null); return undefined; }
+    let stop = false;
+    const pull = () => deliveryApi.tracking(order.id).then((t) => {
+      if (stop) return;
+      setTracking(t);
+      // The rider moves the order on the server; pull the fresh copy (status, partner, code) into the cache.
+      if (t.orderStatus !== order.status) commerce.refreshOrder(order.id).catch(() => {});
+    }).catch(() => {});
+    pull();
+    const timer = setInterval(pull, 15_000);
+    return () => { stop = true; clearInterval(timer); };
+  }, [order?.id, order?.status, trackable]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!order) return <Page><PageHeader title="Order not found" onBack={() => nav("orders")} /></Page>;
 
   const address = addresses.find((a) => a.id === order.addressId) || (order.shipTo ? { id: "snapshot", label: "Delivery address", ...order.shipTo } : null);
@@ -29,25 +45,7 @@ export default function OrderDetails({ nav, params }) {
   const style = STATUS_STYLE[order.status];
   const canCancel = stageIndex(order.status) < stageIndex("packed") && !["cancelled", "returned"].includes(order.status);
   const live = !["delivered", "cancelled", "returned"].includes(order.status);
-
-  /* Demo control: advances the lifecycle the way the delivery app would. Goes through the real API, so it only
-     works for a signed-in account with orders:update_status — a plain customer viewing their own order won't be
-     able to move it forward, same as in production. */
-  const advance = async () => {
-    const i = stageIndex(order.status);
-    const nextStage = ORDER_STAGES[i + 1];
-    if (!nextStage) return;
-    if (nextStage.id === "delivered" && order.otpRequired) { setOtpOpen(true); return; }
-    setBusy(true);
-    try {
-      await commerce.advanceOrder(order.id, nextStage.id);
-      toast(`Order ${nextStage.label.toLowerCase()}`);
-    } catch (err) {
-      toast(err.message || "Couldn't update the order", "danger");
-    } finally {
-      setBusy(false);
-    }
-  };
+  const loc = tracking?.delivery?.location;
 
   return (
     <Page>
@@ -63,7 +61,7 @@ export default function OrderDetails({ nav, params }) {
                 <ShieldCheck size={16} color="#fff" />
                 <p className="text-white font-bold text-sm">Delivery OTP</p>
               </div>
-              <p className="text-white/70 text-xs mb-3">Share this code with the rider only when your order is in your hands.</p>
+              <p className="text-white/70 text-xs mb-3">Read this code to the rider only when your order is in your hands. Riders never see it in their app.</p>
               <div className="flex items-center gap-2">
                 {order.otp.split("").map((d, i) => (
                   <span key={i} className="w-11 h-12 rounded-xl flex items-center justify-center font-extrabold text-xl"
@@ -97,17 +95,21 @@ export default function OrderDetails({ nav, params }) {
             <InlineNotice tone="info">Estimated arrival by {timeLabel(order.eta)} · fulfilled by {store.name}</InlineNotice>
           )}
 
+          {loc && (
+            <a href={`https://www.google.com/maps?q=${loc.lat},${loc.lng}`} target="_blank" rel="noreferrer"
+              className="rounded-2xl p-4 flex items-center gap-3" style={{ background: C.white, border: `1px solid ${C.border}` }}>
+              <span className="w-11 h-11 rounded-full flex items-center justify-center shrink-0" style={{ background: C.mint }}><Bike size={18} style={{ color: C.primary }} /></span>
+              <span className="flex-1 min-w-0">
+                <span className="block font-bold text-sm" style={{ color: C.navy }}>Track your rider</span>
+                <span className="block text-xs" style={{ color: C.muted }}>Last seen {timeLabel(loc.updatedAt)} · tap to open the map</span>
+              </span>
+            </a>
+          )}
+
           {/* Timeline */}
           <div className="rounded-2xl p-4" style={{ background: C.white, border: `1px solid ${C.border}` }}>
             <p className="font-extrabold text-sm mb-4" style={{ color: C.navy }}>Delivery status</p>
             <OrderTimeline order={order} />
-            {live && (
-              <div className="mt-3 pt-3" style={{ borderTop: `1px dashed ${C.border}` }}>
-                <PillButton size="sm" variant="ghost" full onClick={advance} disabled={busy}>
-                  Simulate next status ({ORDER_STAGES[stageIndex(order.status) + 1]?.label})
-                </PillButton>
-              </div>
-            )}
           </div>
 
           {/* Items */}
@@ -165,17 +167,6 @@ export default function OrderDetails({ nav, params }) {
           finally { setConfirmCancel(false); }
         }} />
 
-      <OtpSheet open={otpOpen} onClose={() => setOtpOpen(false)} order={order}
-        onVerified={async () => {
-          try {
-            await commerce.advanceOrder(order.id, "delivered");
-            toast("Delivery verified");
-          } catch (err) {
-            toast(err.message || "Couldn't confirm delivery", "danger");
-          } finally {
-            setOtpOpen(false);
-          }
-        }} />
     </Page>
   );
 }
@@ -187,30 +178,5 @@ function Row({ label, value, tone, bold }) {
       <span className={bold ? "font-extrabold text-sm" : "text-sm"} style={{ color: bold ? C.navy : C.muted }}>{label}</span>
       <span className={bold ? "font-extrabold text-sm" : "text-sm font-semibold"} style={{ color: tone || C.navy }}>{value}</span>
     </div>
-  );
-}
-
-/** The rider's side of the handover: delivery only completes on a correct code. */
-export function OtpSheet({ open, onClose, order, onVerified }) {
-  const C = useC();
-  const [entry, setEntry] = useState("");
-  const [error, setError] = useState("");
-  const verify = () => {
-    if (entry.trim() === order.otp) { setEntry(""); setError(""); onVerified(); }
-    else setError("That code doesn't match. Ask the customer to read it again.");
-  };
-  return (
-    <Sheet open={open} onClose={onClose} title="Verify delivery"
-      footer={<PillButton full onClick={verify} disabled={entry.length !== 4}><Check size={15} /> Confirm delivery</PillButton>}>
-      <p className="text-sm mb-4" style={{ color: C.muted }}>
-        The delivery partner enters the customer's 4-digit code. The order is only marked delivered once it matches.
-      </p>
-      <input value={entry} onChange={(e) => { setEntry(e.target.value.replace(/\D/g, "").slice(0, 4)); setError(""); }}
-        inputMode="numeric" placeholder="0000" aria-label="Delivery OTP"
-        className="w-full text-center tracking-[0.5em] font-extrabold text-2xl rounded-2xl h-16 outline-none"
-        style={{ background: C.white, border: `1.5px solid ${error ? TONE.danger : C.border}`, color: C.navy }} />
-      {error && <p className="text-xs mt-2 font-semibold" style={{ color: TONE.danger }}>{error}</p>}
-      <p className="text-[11px] mt-3" style={{ color: C.muted }}>Demo hint: the code for this order is {order.otp}.</p>
-    </Sheet>
   );
 }

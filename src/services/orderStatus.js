@@ -43,12 +43,12 @@ const INTERNAL_TO_KEY = { placed: "pending", confirmed: "confirmed", preparing: 
 export const sellerStatusOf = (status) => SELLER_STATUSES.find((s) => s.key === (INTERNAL_TO_KEY[status] || "pending"));
 
 /** Next forward step a seller can take, and the extra exits from each stage. */
+/* A shop takes an order as far as "ready for delivery". From there it belongs to the delivery module (Phase 7):
+   a rider picks it up and completes it with the customer's code, so there is no seller "out"/"delivered" step. */
 const FORWARD = {
   pending: { to: "confirmed", label: "Confirm order" },
   confirmed: { to: "preparing", label: "Start preparing" },
   preparing: { to: "packed", label: "Mark ready for delivery" },
-  ready: { to: "out_for_delivery", label: "Send out for delivery" },
-  out: { to: "delivered", label: "Mark delivered" },
 };
 export const nextSellerStep = (status) => FORWARD[sellerStatusOf(status).key] || null;
 export const canCancel = (status) => ["pending", "confirmed", "preparing", "ready"].includes(sellerStatusOf(status).key);

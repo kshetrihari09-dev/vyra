@@ -18,7 +18,7 @@ import { TONE } from "../../theme.js";
 const STEPS = ["Owner", "Shop", "Business", "Documents", "Operations", "Settlement", "Review"];
 
 export default function ShopOnboarding({ nav, params }) {
-  const { session, dispatch, toast, shopApplications } = useApp();
+  const { session, dispatch, toast, shopApplications, commerce } = useApp();
   const C = useC();
   const [step, setStep] = useState(0);
   const [furthest, setFurthest] = useState(0);
@@ -26,7 +26,7 @@ export default function ShopOnboarding({ nav, params }) {
   // Resume a draft/rejected application owned by this session, or the one named in params, or start fresh.
   const [app, setApp] = useState(() => {
     const byParam = params?.applicationId ? shopApplications.find((a) => a.id === params.applicationId) : null;
-    const mine = shopApplications.find((a) => a.owner.mobile === session.user.phone && ["draft", "rejected"].includes(a.status));
+    const mine = shopApplications.find((a) => (a.fromServer ? a.userId === session.user.uuid : a.owner.mobile === session.user.phone) && ["draft", "rejected"].includes(a.status));
     return byParam || mine || blankApplication(session.signedIn ? session.user : null);
   });
 
@@ -39,11 +39,20 @@ export default function ShopOnboarding({ nav, params }) {
   };
   const back = () => step > 0 && goto(step - 1);
 
-  const submit = () => {
+  const [submitting, setSubmitting] = useState(false);
+  const submit = async () => {
     if (!canSubmit(app)) { toast("Some required sections are incomplete", "danger"); return; }
-    dispatch({ type: "SHOP_APP_SUBMIT", application: app, actor: app.owner.name });
-    toast("Application submitted for review");
-    nav("shopStatus", { applicationId: app.id });
+    setSubmitting(true);
+    try {
+      // A rejected application that already lives on the server is resubmitted in place; a local draft is a first submission.
+      const saved = app.fromServer ? await commerce.resubmitShopApplication(app) : await commerce.submitShopApplication(app);
+      toast("Application submitted for review");
+      nav("shopStatus", { applicationId: saved.id });
+    } catch (err) {
+      toast(err.message || "Couldn't submit your application — try again", "danger");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -60,7 +69,7 @@ export default function ShopOnboarding({ nav, params }) {
         {step === 3 && <DocumentsStep app={app} save={save} />}
         {step === 4 && <OperationsStep app={app} save={save} />}
         {step === 5 && <SettlementStep app={app} save={save} />}
-        {step === 6 && <ReviewStep app={app} goto={goto} onSubmit={submit} />}
+        {step === 6 && <ReviewStep app={app} goto={goto} onSubmit={submit} submitting={submitting} />}
 
         {step > 0 && (
           <div className="flex gap-3 mt-6">
@@ -369,7 +378,7 @@ function SettlementStep({ app, save }) {
 }
 
 /* ---------------------------------- REVIEW --------------------------------- */
-function ReviewStep({ app, goto, onSubmit }) {
+function ReviewStep({ app, goto, onSubmit, submitting }) {
   const C = useC();
   const ready = canSubmit(app);
   const sections = [
@@ -398,7 +407,7 @@ function ReviewStep({ app, goto, onSubmit }) {
       ))}
 
       {!ready && <InlineNotice tone="warn" icon={AlertTriangle}>Some required sections are incomplete. Edit them above before submitting.</InlineNotice>}
-      <PillButton full disabled={!ready} onClick={onSubmit}>Submit Application</PillButton>
+      <PillButton full disabled={!ready || submitting} onClick={onSubmit}>{submitting ? "Submitting…" : "Submit Application"}</PillButton>
     </div>
   );
 }

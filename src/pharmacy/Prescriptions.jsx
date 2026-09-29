@@ -15,11 +15,13 @@ const TABS = [
 
 /** Pharmacist console — the only place prescriptions are approved or rejected. */
 export default function Prescriptions({ nav }) {
-  const { prescriptions, products, orders, storeId, dispatch, toast, session } = useApp();
+  const { prescriptions, products, orders, storeId, commerce, dispatch, toast, session } = useApp();
   const C = useC();
   const [tab, setTab] = useState("pending");
   const [review, setReview] = useState(null);
   const [notes, setNotes] = useState("");
+  const [fileUrl, setFileUrl] = useState(null);
+  const [deciding, setDeciding] = useState(false);
 
   const rows = prescriptions.filter((r) => r.status === tab);
 
@@ -43,12 +45,31 @@ export default function Prescriptions({ nav }) {
     };
   }, [prescriptions, products, orders, storeId]);
 
-  const decide = (status) => {
-    dispatch({ type: "RX_DECIDE", id: review.id, status, notes: notes || (status === "approved" ? "Verified against the prescription on file." : "Prescription unclear or expired."), pharmacist: "Dr. N. Rao" });
-    dispatch({ type: "AUDIT", entry: { actor: "Dr. N. Rao (Pharmacist)", action: `Prescription ${status}`, detail: `${review.id} for ${review.customer}` } });
-    dispatch({ type: "NOTIFY_ADD", notification: { id: `n${Date.now()}`, kind: "prescription", title: status === "approved" ? "Prescription approved" : "Prescription rejected", message: status === "approved" ? "Your medicines can now be dispensed." : "Please upload a clearer or more recent prescription.", time: "just now", unread: true } });
+  const closeReview = () => {
     setReview(null); setNotes("");
-    toast(`Prescription ${status}`);
+    if (fileUrl) URL.revokeObjectURL(fileUrl);
+    setFileUrl(null);
+  };
+
+  const openReview = async (rx) => {
+    setReview(rx); setNotes(""); setFileUrl(null);
+    try { setFileUrl(await commerce.fetchPrescriptionFile(rx.id)); }
+    catch { /* preview is a bonus — the decision doesn't depend on it loading */ }
+  };
+
+  const decide = async (status) => {
+    setDeciding(true);
+    try {
+      await commerce.reviewPrescription(review.id, { status, notes: notes || (status === "approved" ? "Verified against the prescription on file." : "Prescription unclear or expired.") });
+      dispatch({ type: "AUDIT", entry: { actor: `${session.user.name} (Pharmacist)`, action: `Prescription ${status}`, detail: `${review.id} for ${review.customerName}` } });
+      dispatch({ type: "NOTIFY_ADD", notification: { id: `n${Date.now()}`, kind: "prescription", title: status === "approved" ? "Prescription approved" : "Prescription rejected", message: status === "approved" ? "Your medicines can now be dispensed." : "Please upload a clearer or more recent prescription.", time: "just now", unread: true } });
+      closeReview();
+      toast(`Prescription ${status}`);
+    } catch (err) {
+      toast(err.message || "Couldn't save that decision — try again");
+    } finally {
+      setDeciding(false);
+    }
   };
 
   return (
@@ -100,7 +121,7 @@ export default function Prescriptions({ nav }) {
                     <FileText size={18} style={{ color: C.primary }} />
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm" style={{ color: C.navy }}>{rx.customer}</p>
+                    <p className="font-bold text-sm" style={{ color: C.navy }}>{rx.customerName}</p>
                     <p className="text-[11px] truncate" style={{ color: C.muted }}>{rx.id} · {rx.fileName} · {dateTimeLabel(rx.uploadedAt)}</p>
                   </div>
                   <Badge tone={rx.status === "approved" ? "ok" : rx.status === "rejected" ? "danger" : "warn"}>{rx.status}</Badge>
@@ -118,12 +139,12 @@ export default function Prescriptions({ nav }) {
                   })}
                 </div>
 
-                {rx.notes && <p className="text-xs mt-2" style={{ color: C.muted }}><span className="font-bold" style={{ color: C.navy }}>{rx.pharmacist}:</span> {rx.notes}</p>}
+                {rx.notes && <p className="text-xs mt-2" style={{ color: C.muted }}><span className="font-bold" style={{ color: C.navy }}>Pharmacist:</span> {rx.notes}</p>}
 
                 {rx.status === "pending" && (
                   <div className="flex gap-2 mt-3">
-                    <PillButton size="sm" variant="danger" className="flex-1" onClick={() => { setReview(rx); setNotes(""); }}>Review</PillButton>
-                    <PillButton size="sm" className="flex-1" onClick={() => { setReview(rx); setNotes(""); }}><Check size={13} /> Decide</PillButton>
+                    <PillButton size="sm" variant="danger" className="flex-1" onClick={() => openReview(rx)}>Review</PillButton>
+                    <PillButton size="sm" className="flex-1" onClick={() => openReview(rx)}><Check size={13} /> Decide</PillButton>
                   </div>
                 )}
               </div>
@@ -132,22 +153,34 @@ export default function Prescriptions({ nav }) {
         )}
       </div>
 
-      <Sheet open={!!review} onClose={() => setReview(null)} title="Pharmacist review"
+      <Sheet open={!!review} onClose={closeReview} title="Pharmacist review"
         footer={
           <div className="flex gap-3">
-            <PillButton variant="danger" className="flex-1" onClick={() => decide("rejected")}><X size={14} /> Reject</PillButton>
-            <PillButton className="flex-1" onClick={() => decide("approved")}><Check size={14} /> Approve</PillButton>
+            <PillButton variant="danger" className="flex-1" disabled={deciding} onClick={() => decide("rejected")}><X size={14} /> Reject</PillButton>
+            <PillButton className="flex-1" disabled={deciding} onClick={() => decide("approved")}><Check size={14} /> Approve</PillButton>
           </div>
         }>
         {review && (
           <>
-            <div className="rounded-2xl h-40 flex items-center justify-center mb-4" style={{ background: C.mint }}>
-              <div className="text-center">
-                <FileText size={30} style={{ color: C.primary }} className="mx-auto mb-2" />
-                <p className="text-xs font-bold" style={{ color: C.navy }}>{review.fileName}</p>
-                <p className="text-[11px]" style={{ color: C.muted }}>Uploaded {dateTimeLabel(review.uploadedAt)}</p>
+            {review.mimeType === "application/pdf" ? (
+              <a href={fileUrl || undefined} target="_blank" rel="noreferrer" className="rounded-2xl h-40 flex items-center justify-center mb-4" style={{ background: C.mint, pointerEvents: fileUrl ? "auto" : "none" }}>
+                <div className="text-center">
+                  <FileText size={30} style={{ color: C.primary }} className="mx-auto mb-2" />
+                  <p className="text-xs font-bold" style={{ color: C.navy }}>{fileUrl ? "Open PDF" : "Loading…"}</p>
+                  <p className="text-[11px]" style={{ color: C.muted }}>{review.fileName}</p>
+                </div>
+              </a>
+            ) : (
+              <div className="rounded-2xl mb-4 overflow-hidden flex items-center justify-center" style={{ background: C.mint, minHeight: "10rem" }}>
+                {fileUrl ? <img src={fileUrl} alt={review.fileName} className="max-h-72 w-full object-contain" /> : (
+                  <div className="text-center py-8">
+                    <FileText size={30} style={{ color: C.primary }} className="mx-auto mb-2" />
+                    <p className="text-xs font-bold" style={{ color: C.navy }}>Loading preview…</p>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
+            <p className="text-[11px] mb-3" style={{ color: C.muted }}>{review.fileName} · Uploaded {dateTimeLabel(review.uploadedAt)}</p>
             <p className="text-sm mb-3" style={{ color: C.muted }}>
               Check the prescriber's details, the date, and that the dose matches what's being dispensed.
             </p>

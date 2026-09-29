@@ -20,7 +20,7 @@ const TABS = [
     approved application here mints a real Seller record that immediately
     shows up there too. */
 export default function AdminShopApplications() {
-  const { shopApplications, session, dispatch, toast } = useApp();
+  const { shopApplications, session, dispatch, toast, commerce } = useApp();
   const C = useC();
   const [tab, setTab] = useState("under_review");
   const [q, setQ] = useState("");
@@ -37,19 +37,40 @@ export default function AdminShopApplications() {
       .sort((a, b) => new Date(b.submittedAt || b.createdAt) - new Date(a.submittedAt || a.createdAt));
   }, [shopApplications, tab, q]);
 
-  const decide = (app, decision) => {
+  const decide = async (app, decision) => {
     if (["reject", "request_correction", "suspend"].includes(decision) && !reasonText.trim()) { toast("A reason is required", "danger"); return; }
-    dispatch({ type: "SHOP_APP_DECISION", id: app.id, decision, reason: reasonText.trim() || null, actor: session.user.name });
-    dispatch({ type: "AUDIT", entry: { actor: session.user.name, action: `Shop application ${decision}`, detail: `${app.shop.name} (${app.owner.name})` } });
-    setReasonFor(null); setReasonText(""); setSelected(null);
-    toast(decision === "approve" ? `${app.shop.name} approved and is now live` : `Application ${decision.replace("_", " ")}`);
+    try {
+      await commerce.decideShopApplication(app.id, { decision, reason: reasonText.trim() || null });
+      dispatch({ type: "AUDIT", entry: { actor: session.user.name, action: `Shop application ${decision}`, detail: `${app.shop.name} (${app.owner.name})` } });
+      setReasonFor(null); setReasonText(""); setSelected(null);
+      toast(decision === "approve" ? `${app.shop.name} approved and is now live` : `Application ${decision.replace("_", " ")}`);
+    } catch (err) {
+      toast(err.message || "Couldn't save that decision — try again", "danger");
+    }
   };
 
-  const verifyDoc = (app, doc, status, reason) => {
-    dispatch({ type: "SHOP_APP_DOC_VERIFY", appId: app.id, docId: doc.id, status, reason });
-    dispatch({ type: "AUDIT", entry: { actor: session.user.name, action: `Document ${status}`, detail: `${DOCUMENT_TYPES.find((d) => d.id === doc.type)?.label || doc.type} · ${app.shop.name}` } });
-    setDocReject(null);
-    toast(`Document ${status}`);
+  const verifyDoc = async (app, doc, status, reason) => {
+    try {
+      await commerce.verifyShopDocument(app.id, doc.id, { status, reason });
+      dispatch({ type: "AUDIT", entry: { actor: session.user.name, action: `Document ${status}`, detail: `${DOCUMENT_TYPES.find((d) => d.id === doc.type)?.label || doc.type} · ${app.shop.name}` } });
+      setDocReject(null);
+      toast(`Document ${status}`);
+    } catch (err) {
+      toast(err.message || "Couldn't save that — try again", "danger");
+    }
+  };
+
+  /* Documents live in private storage behind the bearer-authenticated file route, so "View" fetches the bytes
+     and opens a blob: URL rather than linking to a URL a browser tab couldn't authenticate against. */
+  const viewDoc = async (app, doc) => {
+    try {
+      if (typeof doc.fileUrl === "string" && doc.fileUrl.startsWith("data:")) { window.open(doc.fileUrl, "_blank", "noopener"); return; }
+      const url = await commerce.fetchShopDocument(app.id, doc.id);
+      window.open(url, "_blank", "noopener");
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      toast(err.message || "Couldn't open that document", "danger");
+    }
   };
 
   return (
@@ -136,6 +157,7 @@ export default function AdminShopApplications() {
                     <p className="text-xs font-semibold truncate" style={{ color: C.navy }}>{DOCUMENT_TYPES.find((t) => t.id === d.type)?.label || d.type}</p>
                     <p className="text-[10px] truncate" style={{ color: C.muted }}>{d.fileName}</p>
                   </div>
+                  <button onClick={() => viewDoc(selected, d)} className="text-[11px] font-bold px-2 py-1 rounded-lg" style={{ background: C.mint, color: C.primary }}>View</button>
                   <Badge tone={d.verificationStatus === "verified" ? "ok" : d.verificationStatus === "rejected" ? "danger" : "warn"}>{d.verificationStatus}</Badge>
                   {d.verificationStatus === "pending" && (
                     <div className="flex gap-1">

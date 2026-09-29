@@ -2,11 +2,11 @@ import React, { createContext, useContext, useEffect, useMemo, useReducer, useCa
 import { THEMES } from "../theme.js";
 import { productById } from "../data/products.js";
 import { STORES } from "../data/stores.js";
-import { CARDS, SEED_NOTIFICATIONS, SEED_PRESCRIPTIONS } from "../data/seed.js";
-import { SELLERS, SELLER_PAYOUTS_SEED } from "../data/sellers.js";
+import { CARDS } from "../data/seed.js";
+import { notificationsApi } from "../services/api/notificationsApi.js";
+import { SELLERS } from "../data/sellers.js";
 import { SEED_PURCHASE_ORDERS } from "../data/suppliers.js";
 import { REGISTERED_MOBILES, REGISTERED_EMAILS } from "../data/customers.js";
-import { SEED_SHOP_APPLICATIONS } from "../data/shopApplications.js";
 import { priceOf } from "../utils/pricing.js";
 import { maxAddable } from "../utils/inventory.js";
 import { authApi } from "../services/api/authApi.js";
@@ -18,6 +18,10 @@ import { addressesApi } from "../services/api/addressesApi.js";
 import { cartApi } from "../services/api/cartApi.js";
 import { ordersApi } from "../services/api/ordersApi.js";
 import { wishlistApi } from "../services/api/wishlistApi.js";
+import { prescriptionsApi } from "../services/api/prescriptionsApi.js";
+import { paymentsApi } from "../services/api/paymentsApi.js";
+import { sellersApi } from "../services/api/sellersApi.js";
+import { shopApplicationsApi } from "../services/api/shopApplicationsApi.js";
 
 /** How many products to warm the cache with at startup. Browse, search and product pages are server-driven and
     fetch the rest on demand; the console/analytics screens that still compute over `products` (dashboards, reports,
@@ -43,7 +47,7 @@ const sessionFromApiUser = (u) => ({
   roles: u.roles || [],
   permissions: u.permissions || [],
   isStaff: !!u.isStaff,
-  shopOwnerSellerId: null,
+  shopOwnerSellerId: u.sellerId ?? null, // the shop this account owns — real, from the API (was always null before Phase 6)
   user: { ...GUEST_USER, id: u.legacyId || u.id, uuid: u.id, name: u.name, email: u.email || "", phone: u.mobile || "",
     emailVerified: !!u.emailVerified, phoneVerified: !!u.phoneVerified, memberSince: u.memberSince },
 });
@@ -58,7 +62,7 @@ const initial = {
   session: GUEST_SESSION,
   registeredMobiles: [...REGISTERED_MOBILES],
   registeredEmails: [...REGISTERED_EMAILS],
-  shopApplications: SEED_SHOP_APPLICATIONS,
+  shopApplications: [], // local drafts + the caller's (or, for staff, every) server-side application — see loadCommerce
   cart: [],
   saved: [],
   wishlist: [], // loaded from the API for signed-in customers (see loadCommerce)
@@ -70,13 +74,14 @@ const initial = {
   addresses: [], // loaded from the API once signed in (see loadCommerce)
   cards: CARDS,
   orders: [], // loaded from the API — customers see their own, staff with orders:read_all see everything
-  prescriptions: SEED_PRESCRIPTIONS,
-  notifications: SEED_NOTIFICATIONS,
+  prescriptions: [], // loaded from the API for signed-in customers/pharmacists (see loadCommerce)
+  notifications: [],   // loaded from the API for signed-in users (see loadNotifications); local until then
+  notificationsUnread: 0,
   recentlyViewed: ["cold-brew-coffee", "cotton-tshirt", "paracetamol-500"],
   recentSearches: ["olive oil", "earbuds"],
   coupon: null,
   sellers: SELLERS,
-  sellerPayouts: SELLER_PAYOUTS_SEED,
+  sellerPayouts: [],
   currentSellerId: "novatech-official",
   purchaseOrders: SEED_PURCHASE_ORDERS,
   stockMovements: [],
@@ -180,9 +185,8 @@ export function reducer(state, action) {
     case "ORDER_CANCEL":
       return { ...state, orders: state.orders.map((o) => (o.id === action.id ? { ...o, status: "cancelled", history: [...o.history, { status: "cancelled", at: new Date().toISOString() }] } : o)) };
 
-    case "RX_UPLOAD": return { ...state, prescriptions: [action.rx, ...state.prescriptions] };
-    case "RX_DECIDE":
-      return { ...state, prescriptions: state.prescriptions.map((r) => (r.id === action.id ? { ...r, status: action.status, notes: action.notes || r.notes, pharmacist: action.pharmacist || "Dr. N. Rao" } : r)) };
+    case "PRESCRIPTIONS_LOADED": return { ...state, prescriptions: action.prescriptions };
+    case "PRESCRIPTION_UPSERT": return { ...state, prescriptions: [action.prescription, ...state.prescriptions.filter((r) => r.id !== action.prescription.id)] };
 
     /* ---------------------------- SHOP REGISTRATION ---------------------------- */
     /** Upserts a draft as the owner moves through the wizard — nothing is lost
@@ -194,76 +198,28 @@ export function reducer(state, action) {
         : [action.application, ...state.shopApplications];
       return { ...state, shopApplications };
     }
-    case "SHOP_APP_SUBMIT": {
-      const { application, actor } = action;
-      const now = new Date().toISOString();
-      const submitted = {
-        ...application, status: "under_review", submittedAt: now, needsCorrection: false, rejectionReason: null,
-        history: [...application.history, { status: "submitted", at: now, actor, note: "Submitted for review" }, { status: "under_review", at: now, actor: "System", note: "Queued for admin review" }],
-      };
-      const exists = state.shopApplications.some((a) => a.id === submitted.id);
-      const shopApplications = exists
-        ? state.shopApplications.map((a) => (a.id === submitted.id ? submitted : a))
-        : [submitted, ...state.shopApplications];
-      const registeredMobiles = state.registeredMobiles.includes(application.owner.mobile) ? state.registeredMobiles : [...state.registeredMobiles, application.owner.mobile];
-      return { ...state, shopApplications, registeredMobiles };
-    }
-    /** Admin decisions. Approval mints a real Seller record — the shop then
-        uses the exact same Seller Dashboard/Listings/Orders/Payouts screens
-        every other marketplace seller uses, nothing parallel. */
-    case "SHOP_APP_DECISION": {
-      const { id, decision, reason, actor } = action; // decision: approve | reject | request_correction | suspend
-      const app = state.shopApplications.find((a) => a.id === id);
-      if (!app) return state;
-      const now = new Date().toISOString();
-      let sellers = state.sellers;
-      let sellerId = app.sellerId;
-
-      if (decision === "approve") {
-        sellerId = `shop-${app.id.replace("app-", "")}`;
-        sellers = [...state.sellers, {
-          id: sellerId, name: app.shop.name, firstParty: false, status: "active",
-          commissionRate: 12, rating: null, reviews: 0, joinedAt: now.slice(0, 10),
-          payoutMethod: app.settlement.bankName ? `${app.settlement.bankName} •••• ${String(app.settlement.accountNumber).slice(-4)}` : "Not configured",
-          contactEmail: app.shop.email || app.owner.email, brands: [],
-        }];
-      }
-      if (decision === "suspend" && app.sellerId) {
-        sellers = state.sellers.map((s) => (s.id === app.sellerId ? { ...s, status: "suspended" } : s));
-      }
-
-      const statusMap = { approve: "approved", reject: "rejected", request_correction: "rejected", suspend: "suspended" };
-      const status = statusMap[decision];
-      const updated = {
-        ...app, status, sellerId, rejectionReason: decision === "approve" ? null : reason || app.rejectionReason,
-        needsCorrection: decision === "request_correction",
-        history: [...app.history, { status, at: now, actor, note: reason || (decision === "approve" ? "Application approved" : "") }],
-      };
-      const shopApplications = state.shopApplications.map((a) => (a.id === id ? updated : a));
-      /* If the applicant happens to be the currently signed-in session, wire
-         up their shop dashboard access immediately. */
-      const session = decision === "approve" && state.session.user.phone === app.owner.mobile
-        ? { ...state.session, shopOwnerSellerId: sellerId } : state.session;
-      return { ...state, shopApplications, sellers, session };
-    }
-    /** A rejected owner edits and resubmits — same application id, status
-        moves back into the review queue rather than starting over. */
-    case "SHOP_APP_RESUBMIT": {
-      const now = new Date().toISOString();
-      const app = { ...action.application, status: "under_review", needsCorrection: false, rejectionReason: null,
-        history: [...action.application.history, { status: "under_review", at: now, actor: action.actor, note: "Resubmitted after changes" }] };
-      return { ...state, shopApplications: state.shopApplications.map((a) => (a.id === app.id ? app : a)) };
+    /** Server-side applications. Local drafts (never submitted, not fromServer) are kept as-is; everything else
+        is replaced by what the API says. `replacesId` swaps a just-submitted local draft for its server copy. */
+    case "SHOP_APPS_LOADED": return { ...state, shopApplications: [...action.applications, ...state.shopApplications.filter((a) => !a.fromServer && a.status === "draft")] };
+    case "SHOP_APP_SERVER_UPSERT": {
+      const rest = state.shopApplications.filter((a) => a.id !== action.application.id && a.id !== action.replacesId);
+      return { ...state, shopApplications: [action.application, ...rest] };
     }
     case "SHOP_APP_DOC_VERIFY": {
-      const shopApplications = state.shopApplications.map((a) => {
-        if (a.id !== action.appId) return a;
-        return { ...a, documents: a.documents.map((d) => (d.id === action.docId ? { ...d, verificationStatus: action.status, rejectionReason: action.status === "rejected" ? action.reason : null } : d)) };
-      });
+      const shopApplications = state.shopApplications.map((a) => (a.id !== action.appId ? a : { ...a, documents: a.documents.map((d) => (d.id === action.docId ? { ...d, verificationStatus: action.status, rejectionReason: action.status === "rejected" ? action.reason : null } : d)) }));
       return { ...state, shopApplications };
     }
+    case "SELLERS_LOADED": {
+      const byId = new Map(state.sellers.map((s) => [s.id, s]));
+      for (const s of action.sellers) byId.set(s.id, { ...byId.get(s.id), ...s });
+      return { ...state, sellers: [...byId.values()] };
+    }
+    case "SELLER_PAYOUTS_LOADED": return { ...state, sellerPayouts: action.payouts };
+    case "SELLER_PAYOUT_UPSERT": return { ...state, sellerPayouts: [action.payout, ...state.sellerPayouts.filter((p) => p.id !== action.payout.id)] };
 
-    case "NOTIFY_READ": return { ...state, notifications: state.notifications.map((n) => ({ ...n, unread: false })) };
-    case "NOTIFY_ADD": return { ...state, notifications: [action.notification, ...state.notifications] };
+    case "NOTIFICATIONS_LOADED": return { ...state, notifications: action.notifications, notificationsUnread: action.unread };
+    case "NOTIFICATION_READ": return { ...state, notifications: state.notifications.map((n) => (n.id === action.id ? { ...n, unread: false } : n)), notificationsUnread: action.unread };
+    case "NOTIFY_READ": return { ...state, notifications: state.notifications.map((n) => ({ ...n, unread: false })), notificationsUnread: 0 };
 
     case "CATALOG_LOADED": return { ...state, categories: action.categories, products: action.products, catalogTotal: action.total, catalogVersion: state.catalogVersion + 1 };
     case "CATEGORIES_SET": return { ...state, categories: action.categories, catalogVersion: state.catalogVersion + 1 };
@@ -341,7 +297,6 @@ export function reducer(state, action) {
     case "SELLER_SWITCH": return { ...state, currentSellerId: action.id };
     case "SELLER_UPDATE": return { ...state, sellers: state.sellers.map((s) => (s.id === action.seller.id ? action.seller : s)) };
     case "SELLER_STATUS": return { ...state, sellers: state.sellers.map((s) => (s.id === action.id ? { ...s, status: action.status } : s)) };
-    case "SELLER_PAYOUT": return { ...state, sellerPayouts: [action.payout, ...state.sellerPayouts] };
 
     case "AUDIT": return { ...state, auditLog: [{ id: `a${Date.now()}`, at: new Date().toISOString(), ...action.entry }, ...state.auditLog].slice(0, 50) };
     case "TOAST_ADD": return { ...state, toasts: [...state.toasts, action.toast].slice(-3) };
@@ -428,16 +383,50 @@ export function AppProvider({ children }) {
      a plain customer sees their own, staff with orders:read_all see every order — no separate admin endpoint. */
   const isSignedIn = !!state.session.user.uuid;
   const loadCommerce = useCallback(async () => {
-    if (!isSignedIn) { dispatch({ type: "ADDRESSES_LOADED", addresses: [] }); dispatch({ type: "ORDERS_LOADED", orders: [] }); dispatch({ type: "WISHLIST_SET", productIds: [] }); return; }
-    try {
-      const [addresses, orders, wishlist] = await Promise.all([addressesApi.list(), ordersApi.list(), wishlistApi.list()]);
-      dispatch({ type: "ADDRESSES_LOADED", addresses });
-      dispatch({ type: "ORDERS_LOADED", orders });
-      dispatch({ type: "WISHLIST_SET", productIds: wishlist });
-    } catch { /* left as whatever was already cached; the page that needs it can retry */ }
+    if (!isSignedIn) {
+      for (const a of [{ type: "ADDRESSES_LOADED", addresses: [] }, { type: "ORDERS_LOADED", orders: [] }, { type: "WISHLIST_SET", productIds: [] }, { type: "PRESCRIPTIONS_LOADED", prescriptions: [] }, { type: "SHOP_APPS_LOADED", applications: [] }, { type: "SELLER_PAYOUTS_LOADED", payouts: [] }]) dispatch(a);
+      return;
+    }
+    // allSettled: a 403 on one staff-only call must never take the customer basics down with it.
+    const [addresses, orders, wishlist, prescriptions, applications] = await Promise.allSettled([addressesApi.list(), ordersApi.list(), wishlistApi.list(), prescriptionsApi.listMine(), shopApplicationsApi.list()]);
+    if (addresses.status === "fulfilled") dispatch({ type: "ADDRESSES_LOADED", addresses: addresses.value });
+    if (orders.status === "fulfilled") dispatch({ type: "ORDERS_LOADED", orders: orders.value });
+    if (wishlist.status === "fulfilled") dispatch({ type: "WISHLIST_SET", productIds: wishlist.value });
+    // GET /prescriptions and GET /seller-applications each return "mine" or "everyone's" depending on the caller's permissions.
+    if (prescriptions.status === "fulfilled") dispatch({ type: "PRESCRIPTIONS_LOADED", prescriptions: prescriptions.value });
+    if (applications.status === "fulfilled") dispatch({ type: "SHOP_APPS_LOADED", applications: applications.value });
   }, [isSignedIn]);
 
+  /* Marketplace data that depends on who's signed in: staff see every seller and payout, a shop owner sees
+     their own. Kept separate from loadCommerce because it needs the session's permissions/sellerId. */
+  const loadMarketplace = useCallback(async (session) => {
+    if (!session?.signedIn) return;
+    const perms = session.permissions || [];
+    if (perms.includes("sellers:read_all")) sellersApi.list().then((sellers) => dispatch({ type: "SELLERS_LOADED", sellers })).catch(() => {});
+    else if (session.shopOwnerSellerId) sellersApi.mine().then((seller) => seller && dispatch({ type: "SELLERS_LOADED", sellers: [seller] })).catch(() => {});
+    // The catalogue preload only ever returns public (active) products to a shop owner — their own pending,
+    // inactive and rejected listings need an explicit, own-shop-scoped fetch.
+    if (session.shopOwnerSellerId && !perms.includes("catalog:write")) productsApi.list({ status: "any", sellerId: session.shopOwnerSellerId, pageSize: 100 }).then((page) => dispatch({ type: "PRODUCTS_UPSERT", products: page.items })).catch(() => {});
+    if (perms.includes("payouts:read_all")) sellersApi.allPayouts().then((payouts) => dispatch({ type: "SELLER_PAYOUTS_LOADED", payouts })).catch(() => {});
+    else if (session.shopOwnerSellerId) sellersApi.payouts(session.shopOwnerSellerId).then((payouts) => dispatch({ type: "SELLER_PAYOUTS_LOADED", payouts })).catch(() => {});
+  }, []);
+
+  const loadNotifications = useCallback(async () => {
+    if (!isSignedIn) { dispatch({ type: "NOTIFICATIONS_LOADED", notifications: [], unread: 0 }); return; }
+    try {
+      const { notifications, unread } = await notificationsApi.list({ limit: 30 });
+      dispatch({ type: "NOTIFICATIONS_LOADED", notifications, unread });
+    } catch { /* transient — next poll retries */ }
+  }, [isSignedIn]);
   useEffect(() => { if (authReady) loadCommerce(); }, [authReady, signedInUuid, loadCommerce]);
+  useEffect(() => {
+    if (!authReady) return undefined;
+    loadNotifications();
+    if (!isSignedIn) return undefined;
+    const t = setInterval(loadNotifications, 30_000);
+    return () => clearInterval(t);
+  }, [authReady, signedInUuid, isSignedIn, loadNotifications]);
+  useEffect(() => { if (authReady) loadMarketplace(state.session); }, [authReady, signedInUuid, state.session.shopOwnerSellerId, loadMarketplace]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const commerce = useMemo(() => ({
     reload: loadCommerce,
@@ -467,6 +456,37 @@ export function AppProvider({ children }) {
     async setDefaultAddress(id) { const address = await addressesApi.setDefault(id); dispatch({ type: "ADDRESS_UPSERT", address }); return address; },
     async removeAddress(id) { await addressesApi.remove(id); dispatch({ type: "ADDRESS_REMOVE", id }); },
     async toggleWishlist(productId) { const res = await wishlistApi.toggle(productId); dispatch({ type: res.saved ? "WISHLIST_ADD_LOCAL" : "WISHLIST_REMOVE_LOCAL", productId }); return res; },
+    async uploadPrescription(file, opts) { const prescription = await prescriptionsApi.upload(file, opts); dispatch({ type: "PRESCRIPTION_UPSERT", prescription }); return prescription; },
+    async reviewPrescription(id, decision) { const prescription = await prescriptionsApi.review(id, decision); dispatch({ type: "PRESCRIPTION_UPSERT", prescription }); return prescription; },
+    async fetchPrescriptionFile(id) { return prescriptionsApi.fetchFileBlobUrl(id); },
+    async paymentsForOrder(orderId) { return paymentsApi.forOrder(orderId); },
+    async requestRefund(orderId, body) { return paymentsApi.requestRefund(orderId, body); },
+    async listRefunds(params) { return paymentsApi.listRefunds(params); },
+    async decideRefund(id, decision) { return paymentsApi.decideRefund(id, decision); },
+
+    /* Phase 6 — marketplace. Every one of these returns the server's answer and updates local state from it. */
+    async submitShopApplication(draft) {
+      const application = await shopApplicationsApi.submit(draft);
+      dispatch({ type: "SHOP_APP_SERVER_UPSERT", application, replacesId: draft.id });
+      return application;
+    },
+    async resubmitShopApplication(app) {
+      const application = await shopApplicationsApi.resubmit(app);
+      dispatch({ type: "SHOP_APP_SERVER_UPSERT", application });
+      return application;
+    },
+    async decideShopApplication(id, body) {
+      const application = await shopApplicationsApi.decide(id, body);
+      dispatch({ type: "SHOP_APP_SERVER_UPSERT", application });
+      if (application.sellerId) sellersApi.list().then((sellers) => dispatch({ type: "SELLERS_LOADED", sellers })).catch(() => {});
+      return application;
+    },
+    async verifyShopDocument(appId, docId, body) { const document = await shopApplicationsApi.verifyDocument(appId, docId, body); dispatch({ type: "SHOP_APP_DOC_VERIFY", appId, docId, status: document.verificationStatus, reason: document.rejectionReason }); return document; },
+    async fetchShopDocument(appId, docId) { return shopApplicationsApi.fetchDocumentBlobUrl(appId, docId); },
+    async setSellerStatus(id, status) { const seller = await sellersApi.setStatus(id, status); dispatch({ type: "SELLER_STATUS", id, status: seller.status }); return seller; },
+    async sellerBalance(id) { return sellersApi.balance(id); },
+    async requestPayout(sellerId, body) { const payout = await sellersApi.requestPayout(sellerId, body); dispatch({ type: "SELLER_PAYOUT_UPSERT", payout }); return payout; },
+    async decidePayout(id, body) { const payout = await sellersApi.decidePayout(id, body); dispatch({ type: "SELLER_PAYOUT_UPSERT", payout }); return payout; },
   }), [loadCommerce]);
 
   const auth = useMemo(() => ({
@@ -475,6 +495,20 @@ export function AppProvider({ children }) {
     async registerVerify(payload) { const { user } = await authApi.registerVerify(payload); dispatch({ type: "SESSION_SET", user }); return user; },
     async logout() { try { await authApi.logout(); } finally { dispatch({ type: "SIGN_OUT" }); } },
   }), []);
+
+  const notifications = useMemo(() => ({
+    reload: loadNotifications,
+    async markRead(id) {
+      const { unread } = await notificationsApi.read(id);
+      dispatch({ type: "NOTIFICATION_READ", id, unread });
+    },
+    async markAllRead() {
+      await notificationsApi.readAll();
+      dispatch({ type: "NOTIFY_READ" });
+    },
+    getPreferences: () => notificationsApi.getPreferences(),
+    setPreferences: (body) => notificationsApi.setPreferences(body),
+  }), [loadNotifications]);
 
   const toast = useCallback((message, tone = "success") => {
     const id = `t${++toastSeq.current}`;
@@ -507,6 +541,8 @@ export function AppProvider({ children }) {
     auth,
     catalog,
     commerce,
+    notifications,
+    unread: state.notificationsUnread,
     toast,
     cartLines,
     savedLines,
@@ -514,7 +550,7 @@ export function AppProvider({ children }) {
     activeProducts,
     myOrders,
     isFirstOrder: myOrders.length === 0,
-  }), [state, cartLines, savedLines, cartCount, activeProducts, myOrders, toast, auth, catalog, commerce]);
+  }), [state, cartLines, savedLines, cartCount, activeProducts, myOrders, toast, auth, catalog, commerce, notifications]);
 
   return (
     <AppCtx.Provider value={value}>

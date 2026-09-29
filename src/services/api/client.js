@@ -38,7 +38,7 @@ export const hasAccessToken = () => !!accessToken;
 /** Called when the session can't be refreshed (expired / revoked) so the app can sign the user out. */
 export const setSessionLostHandler = (fn) => { onSessionLost = fn; };
 
-async function send(path, { method = "GET", body, auth = true, query } = {}) {
+async function send(path, { method = "GET", body, auth = true, query, raw = false } = {}) {
   const qs = query ? "?" + new URLSearchParams(Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== "")).toString() : "";
   let res;
   try {
@@ -54,6 +54,13 @@ async function send(path, { method = "GET", body, auth = true, query } = {}) {
     });
   } catch {
     throw new ApiError(0, "NETWORK_ERROR", "Can't reach the server. Check your connection and try again.");
+  }
+  // Non-JSON responses (a prescription's file bytes, say) — the caller reads the body itself (e.g. res.blob()).
+  if (raw) {
+    if (res.ok) return res;
+    let json = null;
+    try { json = await res.json(); } catch { /* empty / non-JSON body */ }
+    throw new ApiError(res.status, json?.code || "UNKNOWN_ERROR", json?.message || `Request failed (${res.status})`, json?.details);
   }
   let json = null;
   try { json = await res.json(); } catch { /* empty / non-JSON body */ }

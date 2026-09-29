@@ -1,4 +1,5 @@
 import React from "react";
+import { relativeTime } from "../../utils/format.js";
 import { useC } from "../../store/AppContext.jsx";
 import { Icon } from "../../components/shared/Icon.jsx";
 import { TONE } from "../../theme.js";
@@ -31,7 +32,7 @@ export function NotificationItem({ notification, onClick }) {
           {notification.unread && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: TONE.danger }} />}
         </span>
         <span className="block text-sm mt-0.5 leading-snug" style={{ color: C.muted }}>{notification.message}</span>
-        <span className="block text-[11px] mt-1.5" style={{ color: C.muted }}>{notification.time}</span>
+        <span className="block text-[11px] mt-1.5" style={{ color: C.muted }}>{relativeTime(notification.createdAt)}</span>
       </span>
     </button>
   );
