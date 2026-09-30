@@ -20,6 +20,10 @@ export function ownedSellerId(session, shopApplications) {
   return session?.shopOwnerSellerId || approvedApplication(session, shopApplications)?.sellerId || null;
 }
 
+/** Admin console access: signed in AND holding the "admin" role (assigned only in the database).
+    UI gate only — the API re-checks permissions from the database on every request. */
+export const isAdmin = (session) => !!session?.signedIn && (session.roles || []).includes("admin");
+
 export function roleOf(session, shopApplications) {
   if (ownedSellerId(session, shopApplications)) return "shop_owner";
   if (session?.isStaff) return "staff";

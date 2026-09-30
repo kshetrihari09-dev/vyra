@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useApp, useC } from "../store/AppContext.jsx";
 import { PillButton, Badge, Sheet, Divider, InlineNotice, EmptyState } from "../components/shared/ui.jsx";
 import { Search, Check, X, AlertTriangle, FileText, ClipboardList } from "../components/shared/Icon.jsx";
@@ -28,6 +28,17 @@ export default function AdminShopApplications() {
   const [reasonFor, setReasonFor] = useState(null); // { app, decision } awaiting a typed reason
   const [reasonText, setReasonText] = useState("");
   const [docReject, setDocReject] = useState(null); // { appId, docId }
+
+  /* The list is loaded once at sign-in; pull the latest whenever the queue is opened, on a slow poll, and when the
+     tab regains focus, so applications submitted after the admin signed in show up without a full page reload. */
+  useEffect(() => {
+    const refresh = () => commerce.refreshShopApplications().catch((err) => console.error("[vyra] shop applications refresh failed:", err.code, err.message));
+    refresh();
+    const t = setInterval(refresh, 30_000);
+    const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVisible); };
+  }, [commerce]);
 
   const rows = useMemo(() => {
     const term = q.toLowerCase().trim();

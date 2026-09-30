@@ -5,6 +5,7 @@ import { PageHeader, PillButton, Badge, Divider, Sheet, ConfirmDialog } from "..
 import { Icon, ChevronRight, Palette, Check, ShieldCheck, LogOut } from "../../components/shared/Icon.jsx";
 import { THEMES, THEME_ORDER } from "../../theme.js";
 import { ROLES } from "../../data/stores.js";
+import { isAdmin } from "../../services/access.js";
 
 const MENU = [
   { id: "orders", label: "Your Orders", sub: "Track, reorder and invoices", icon: "Package" },
@@ -99,7 +100,7 @@ export default function Profile({ nav }) {
           <div>
             <p className="text-xs font-bold uppercase tracking-wide mb-2 px-1" style={{ color: C.muted }}>Staff access</p>
             <div className="rounded-2xl overflow-hidden" style={{ background: C.white, border: `1px solid ${C.border}` }}>
-              {STAFF.map((m, i) => (
+              {STAFF.filter((m) => m.id !== "admin" || isAdmin(session)).map((m, i) => (
                 <button key={m.id} onClick={() => nav(m.id)} className="w-full flex items-center gap-3 p-4 text-left" style={{ borderTop: i ? `1px solid ${C.border}` : "none" }}>
                   <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: C.navy }}>
                     <Icon name={m.icon} size={17} color="#fff" />

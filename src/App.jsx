@@ -26,6 +26,8 @@ import Auth from "./customer/pages/Auth.jsx";
 
 /* Everything that isn't the customer storefront is fetched only when opened. */
 const Admin = lazy(() => import("./admin/Dashboard.jsx"));
+import AdminGate from "./admin/AdminGate.jsx";
+import { isAdmin } from "./services/access.js";
 const Pharmacy = lazy(() => import("./pharmacy/Prescriptions.jsx"));
 const Delivery = lazy(() => import("./delivery/DeliveryOrders.jsx"));
 const POS = lazy(() => import("./pos/POS.jsx"));
@@ -94,7 +96,7 @@ function Shell() {
       case "prescription": return <Prescription nav={nav} params={params} />;
       case "support": return <Support nav={nav} params={params} />;
       case "offers": return <Offers nav={nav} />;
-      case "admin": return <Lazy><Admin nav={nav} params={params} /></Lazy>;
+      case "admin": return isAdmin(session) ? <Lazy><Admin nav={nav} params={params} /></Lazy> : <AdminGate signedIn={session.signedIn} nav={nav} />;
       case "pharmacy": return <Lazy><Pharmacy nav={nav} /></Lazy>;
       case "delivery": return <Lazy><Delivery nav={nav} /></Lazy>;
       default: return <Home nav={nav} />;

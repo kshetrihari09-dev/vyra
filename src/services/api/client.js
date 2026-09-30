@@ -65,6 +65,11 @@ async function send(path, { method = "GET", body, auth = true, query, raw = fals
   let json = null;
   try { json = await res.json(); } catch { /* empty / non-JSON body */ }
   if (res.ok && json?.success) return json.data;
+  // A 2xx whose body isn't JSON almost always means /api never reached the backend and the host answered with the
+  // SPA's index.html (a catch-all rewrite). Say so, instead of the vague "Request failed (200)".
+  if (res.ok && json === null && /text\/html/i.test(res.headers?.get?.("content-type") || "")) {
+    throw new ApiError(res.status, "API_NOT_ROUTED", "The server returned a web page instead of API data — /api isn't routed to the backend. Check the hosting rewrite for /api.");
+  }
   throw new ApiError(res.status, json?.code || "UNKNOWN_ERROR", json?.message || `Request failed (${res.status})`, json?.details);
 }
 

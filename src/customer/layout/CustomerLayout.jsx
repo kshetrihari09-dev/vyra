@@ -4,7 +4,7 @@ import { SearchBar } from "../components/SearchBar.jsx";
 import { Sheet, PillButton, IconCircleButton, Badge } from "../../components/shared/ui.jsx";
 import { Logo } from "../../components/shared/Logo.jsx";
 import { Page } from "../../components/shared/Page.jsx";
-import { roleOf } from "../../services/access.js";
+import { roleOf, isAdmin } from "../../services/access.js";
 import { Icon, Bell, ChevronDown, Heart, Home, LayoutGrid, MapPin, Search, ShoppingCart, Store, User, Clock, Check, ShieldCheck } from "../../components/shared/Icon.jsx";
 import { STORES } from "../../data/stores.js";
 import { topCategories } from "../../data/categories.js";
@@ -65,7 +65,7 @@ export function MobileHeader({ nav, query, setQuery }) {
     <header className="md:hidden sticky top-0 z-30 px-4 pt-3 pb-3" style={{ background: C.bg, borderBottom: `1px solid ${C.border}` }}>
       <div className="flex items-center gap-2 mb-3">
         <div className="flex-1 min-w-0"><StoreSelector compact /></div>
-        {role === "staff" && <IconCircleButton icon={ShieldCheck} ariaLabel="Admin console" size={36} onClick={() => nav("admin")} />}
+        {isAdmin(session) && <IconCircleButton icon={ShieldCheck} ariaLabel="Admin console" size={36} onClick={() => nav("admin")} />}
         {role === "shop_owner" && <IconCircleButton icon={Store} ariaLabel="Shop dashboard" size={36} onClick={() => nav("shopDashboard")} />}
         <IconCircleButton icon={Bell} ariaLabel="Notifications" badge={unread} size={36} onClick={() => nav("notifications")} />
         <IconCircleButton icon={ShoppingCart} ariaLabel="Cart" badge={cartCount} size={36} onClick={() => nav("cart")} />
@@ -102,7 +102,7 @@ export function DesktopHeader({ nav, view, query, setQuery }) {
               }} />
           </div>
           <nav className="flex items-center gap-2 shrink-0">
-            {role === "staff" && <IconCircleButton icon={ShieldCheck} ariaLabel="Admin console" onClick={() => nav("admin")} />}
+            {isAdmin(session) && <IconCircleButton icon={ShieldCheck} ariaLabel="Admin console" onClick={() => nav("admin")} />}
             {(role === "staff" || role === "shop_owner") && <IconCircleButton icon={Store} ariaLabel="Shop dashboard" onClick={() => nav("shopDashboard")} />}
             <IconCircleButton icon={Heart} ariaLabel="Wishlist" badge={wishlist.length} onClick={() => nav("wishlist")} />
             <IconCircleButton icon={Bell} ariaLabel="Notifications" badge={unread} onClick={() => nav("notifications")} />

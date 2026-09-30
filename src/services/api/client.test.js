@@ -32,6 +32,11 @@ describe("api client", () => {
     assert.equal(calls[0].body, JSON.stringify({ a: 1 }));
   });
 
+  it("reports a 2xx HTML response (SPA fallback) as API_NOT_ROUTED, not a vague failure", async () => {
+    globalThis.fetch = async () => ({ ok: true, status: 200, headers: { get: () => "text/html; charset=utf-8" }, json: async () => { throw new SyntaxError("Unexpected token <"); } });
+    await assert.rejects(() => api.get("/seller-applications"), (e) => e instanceof ApiError && e.code === "API_NOT_ROUTED" && e.status === 200);
+  });
+
   it("builds query strings and skips empty values", async () => {
     const calls = mockFetch([ok({})]);
     await api.get("/products", { q: "para", page: 2, brand: "", cat: undefined });

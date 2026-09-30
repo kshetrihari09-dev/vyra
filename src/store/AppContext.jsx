@@ -395,6 +395,7 @@ export function AppProvider({ children }) {
     // GET /prescriptions and GET /seller-applications each return "mine" or "everyone's" depending on the caller's permissions.
     if (prescriptions.status === "fulfilled") dispatch({ type: "PRESCRIPTIONS_LOADED", prescriptions: prescriptions.value });
     if (applications.status === "fulfilled") dispatch({ type: "SHOP_APPS_LOADED", applications: applications.value });
+    else console.error("[vyra] couldn't load shop applications:", applications.reason?.code, applications.reason?.message);
   }, [isSignedIn]);
 
   /* Marketplace data that depends on who's signed in: staff see every seller and payout, a shop owner sees
@@ -465,6 +466,13 @@ export function AppProvider({ children }) {
     async decideRefund(id, decision) { return paymentsApi.decideRefund(id, decision); },
 
     /* Phase 6 — marketplace. Every one of these returns the server's answer and updates local state from it. */
+    /* Re-fetches just the application list (admins get everyone's, applicants their own). The list is otherwise
+       loaded once at sign-in, so an admin who is already signed in would never see a newly submitted application. */
+    async refreshShopApplications() {
+      const applications = await shopApplicationsApi.list();
+      dispatch({ type: "SHOP_APPS_LOADED", applications });
+      return applications;
+    },
     async submitShopApplication(draft) {
       const application = await shopApplicationsApi.submit(draft);
       dispatch({ type: "SHOP_APP_SERVER_UPSERT", application, replacesId: draft.id });
@@ -496,7 +504,7 @@ export function AppProvider({ children }) {
     async logout() { try { await authApi.logout(); } finally { dispatch({ type: "SIGN_OUT" }); } },
   }), []);
 
-  const notify = useMemo(() => ({
+  const notifications = useMemo(() => ({
     reload: loadNotifications,
     async markRead(id) {
       const { unread } = await notificationsApi.read(id);
@@ -541,7 +549,7 @@ export function AppProvider({ children }) {
     auth,
     catalog,
     commerce,
-    notify,
+    notifications,
     unread: state.notificationsUnread,
     toast,
     cartLines,
@@ -550,7 +558,7 @@ export function AppProvider({ children }) {
     activeProducts,
     myOrders,
     isFirstOrder: myOrders.length === 0,
-  }), [state, cartLines, savedLines, cartCount, activeProducts, myOrders, toast, auth, catalog, commerce, notify]);
+  }), [state, cartLines, savedLines, cartCount, activeProducts, myOrders, toast, auth, catalog, commerce, notifications]);
 
   return (
     <AppCtx.Provider value={value}>
