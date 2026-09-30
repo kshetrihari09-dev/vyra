@@ -13,10 +13,10 @@ export default function Notifications({ nav }) {
   const [prefs, setPrefs] = useState(null);
   const [savingPrefs, setSavingPrefs] = useState(false);
 
-  useEffect(() => { app.notifications.reload(); app.notifications.getPreferences().then(setPrefs).catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { app.notify.reload(); app.notify.getPreferences().then(setPrefs).catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const route = async (n) => {
-    if (n.unread) app.notifications.markRead(n.id).catch(() => {});
+    if (n.unread) app.notify.markRead(n.id).catch(() => {});
     if (n.data?.orderId) nav("orderDetails", { orderId: n.data.orderId });
     else if (n.data?.prescriptionId) nav("prescription");
     else if (n.data?.applicationId) nav("sellerApplication", { applicationId: n.data.applicationId });
@@ -34,7 +34,7 @@ export default function Notifications({ nav }) {
   return (
     <Page>
       <PageHeader title="Notifications" subtitle={unread ? `${unread} unread` : "All caught up"} onBack={() => nav("profile")}
-        right={unread > 0 && <button onClick={() => app.notifications.markAllRead()} className="text-xs font-bold" style={{ color: C.primary }}>Mark all read</button>} />
+        right={unread > 0 && <button onClick={() => app.notify.markAllRead()} className="text-xs font-bold" style={{ color: C.primary }}>Mark all read</button>} />
       <div className="px-4 md:px-0 space-y-3">
         {prefs && (
           <div className="rounded-2xl p-4 flex items-center justify-between gap-4" style={{ background: C.white, border: `1px solid ${C.border}` }}>
