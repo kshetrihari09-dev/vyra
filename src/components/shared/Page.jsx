@@ -1,9 +1,10 @@
 import React from "react";
 
-/** Consistent page container: full-bleed on mobile, centred on desktop. */
-export function Page({ children, className = "", wide }) {
+/** Consistent page container: full-bleed on mobile, full available width (with side padding) on desktop.
+ *  The old `wide` prop only chose between two max-widths, so it no longer has an effect; callers can keep passing it. */
+export function Page({ children, className = "" }) {
   return (
-    <main className={`pt-4 pb-28 md:pb-16 mx-auto ${wide ? "max-w-7xl" : "max-w-5xl"} md:px-8 ${className}`}>
+    <main className={`pt-4 pb-28 md:pb-16 w-full md:px-8 ${className}`}>
       {children}
     </main>
   );

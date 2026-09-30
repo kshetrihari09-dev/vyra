@@ -62,7 +62,7 @@ export default function ShopOnboarding({ nav, params }) {
         <Stepper steps={STEPS} activeIndex={step} furthestIndex={furthest} onSelect={goto} />
       </div>
 
-      <div className="px-4 md:px-0 max-w-2xl">
+      <div className="px-4 md:px-0">
         {step === 0 && <OwnerStep app={app} save={save} onDone={next} session={session} />}
         {step === 1 && <ShopStep app={app} save={save} />}
         {step === 2 && <BusinessStep app={app} save={save} />}

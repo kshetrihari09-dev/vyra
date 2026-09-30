@@ -103,7 +103,7 @@ export default function Settings() {
           { id: "profile", label: "Profile" }, { id: "contact", label: "Contact & address" }, { id: "hours", label: "Business hours" },
           { id: "delivery", label: "Delivery" }, { id: "payments", label: "Payments" }, { id: "tax", label: "Tax" }, { id: "notifications", label: "Notifications" },
         ]} /></div>
-        <div className="p-5 max-w-3xl">
+        <div className="p-5">
           {tab === "profile" && (
             <div className="space-y-4">
               <Field label="Shop name" error={errors.name}><Input value={d.name} onChange={(e) => set({ name: e.target.value })} error={errors.name} /></Field>

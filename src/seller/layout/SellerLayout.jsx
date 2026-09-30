@@ -214,7 +214,7 @@ export default function SellerLayout({ view, nav, locked, children }) {
           {searching && <div className="md:hidden px-3 pb-3"><TopSearch nav={nav} autoFocus onDone={() => setSearching(false)} /></div>}
         </header>
 
-        <main className="px-4 md:px-6 py-5 pb-24 md:pb-10 max-w-[1440px] mx-auto min-w-0">{children}</main>
+        <main className="px-4 md:px-6 py-5 pb-24 md:pb-10 min-w-0">{children}</main>
       </div>
 
       {/* Phone: the four sections used all day, plus the drawer for the rest */}

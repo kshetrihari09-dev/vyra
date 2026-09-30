@@ -32,7 +32,7 @@ export default function ShopApplicationStatus({ nav, params }) {
   return (
     <Page>
       <PageHeader title="Shop Registration" subtitle={app.shop.name} onBack={() => nav("profile")} />
-      <div className="px-4 md:px-0 space-y-4 max-w-xl">
+      <div className="px-4 md:px-0 space-y-4">
         <div className="rounded-2xl overflow-hidden" style={{ background: C.white, border: `1px solid ${C.border}` }}>
           {checklist.map((c, i) => (
             <div key={c.id} className="flex items-center gap-3 px-4 py-3" style={{ borderTop: i ? `1px solid ${C.border}` : "none" }}>

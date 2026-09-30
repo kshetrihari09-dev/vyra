@@ -114,7 +114,7 @@ export default function POS({ nav }) {
 
   return (
     <div style={{ background: OPS.bg, minHeight: "100vh" }}>
-      <div className="max-w-6xl mx-auto px-4 md:px-6 py-4">
+      <div className="px-4 md:px-6 py-4">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="font-bold text-lg" style={{ color: OPS.ink }}>Point of Sale</h1>

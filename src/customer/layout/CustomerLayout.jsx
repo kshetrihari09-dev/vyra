@@ -89,7 +89,7 @@ export function DesktopHeader({ nav, view, query, setQuery }) {
 
   return (
     <header className="hidden md:block sticky top-0 z-30" style={{ background: C.white, borderBottom: `1px solid ${C.border}` }}>
-      <div className="max-w-7xl mx-auto px-8">
+      <div className="w-full px-8">
         <div className="flex items-center gap-6 py-3">
           <button onClick={() => nav("home")}><Logo withTagline={false} /></button>
           <div className="shrink-0"><StoreSelector /></div>
