@@ -3,7 +3,7 @@
   "buildCommand": "node scripts/check-vercel-config.mjs && npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://YOUR-VYRA-BACKEND-ORIGIN/api/:path*" },
+    { "source": "/api/:path*", "destination": "https://vyra-backend-rlf0.onrender.com/api/:path*" },
     { "source": "/((?!api(?:/|$)).*)", "destination": "/index.html" }
   ]
 }
