@@ -94,8 +94,11 @@ export default function ProductForm({ open, product, seller, onClose, onOpenInve
       if (isNew) {
         // The server pins sellerId to this shop and forces status to pending_review whatever we send —
         // a seller can't list something live, or under someone else's name, from here or anywhere else.
-        const saved = await catalog.createProduct(next);
-        if (!hasVariants && opening > 0) dispatch({ type: "STOCK_ADJUST", productId: saved.id, variantId: null, storeId: STORES[0].id, delta: Math.round(opening), reason: "Opening stock", user: `${seller.name} (seller)` }); // local only — sellers have no stock endpoint yet
+        // Opening stock travels WITH the create request, so the server records it once, in the same transaction as the
+        // product. (It used to be added to the local cache afterwards, which the next fetch silently threw away.) Whole
+        // units only: stock is an integer, so a fraction is rounded exactly as it was before.
+        const openingQty = !hasVariants ? Math.round(opening) : 0;
+        await catalog.createProduct(next, openingQty > 0 ? { openingStock: { [STORES[0].id]: openingQty } } : undefined);
         toast("Submitted for review — it goes live once approved");
       } else {
         await catalog.updateProduct(next);
