@@ -1,7 +1,7 @@
 /* Product artwork is drawn, not fetched — keeps the original Vyra
    illustrated look and means zero image payload. The shape comes from the
    product's category, so new categories get sensible art for free. */
-import React, { memo } from "react";
+import React, { memo, useState } from "react";
 import { resolveCategory } from "../../data/categories.js";
 
 function Shape({ shape, color, accent, w = 120, h = 120 }) {
@@ -95,12 +95,17 @@ export const ProductArt = memo(function ProductArt({ product, size = 120, varian
   const color = variant?.options?.color?.startsWith?.("#") ? variant.options.color : product.art?.color || cat?.fg || "#0FAF8F";
   const accent = product.art?.accent || cat?.tint || "#E9FAF6";
   const shape = product.art?.shape || cat?.image || "box";
-  /* Sellers can upload real photos; the drawn artwork remains the fallback. */
-  const photo = product.images?.[0];
+  /* Sellers can upload real photos; the drawn artwork remains the fallback. The API sends images as
+     { key, alt, primary } objects (no URL yet), the seller form uses plain data/http URLs — only a usable
+     string URL is rendered, and a load failure drops back to the drawn art instead of a broken-image icon. */
+  const [failed, setFailed] = useState(false);
+  const first = product.images?.find?.((i) => i?.primary) || product.images?.[0];
+  const candidate = typeof first === "string" ? first : first?.url || first?.src;
+  const photo = !failed && typeof candidate === "string" && /^(https?:|data:image\/|\/)/.test(candidate) ? candidate : null;
   if (photo) {
     return (
       <div className="overflow-hidden" style={{ borderRadius: rounded ? 18 : 0, width: "100%", height: "100%", background: bg || accent }}>
-        <img src={photo} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
+        <img src={photo} alt={product.name} className="w-full h-full object-cover" loading="lazy" onError={() => setFailed(true)} />
       </div>
     );
   }

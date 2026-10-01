@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useApp, useC } from "../../store/AppContext.jsx";
 import { Page } from "../layout/CustomerLayout.jsx";
 import { PageHeader, PillButton, InlineNotice, Divider, Badge, Sheet } from "../../components/shared/ui.jsx";
@@ -17,7 +17,12 @@ export default function Checkout({ nav }) {
   const { cartLines, addresses, coupon, storeId, dispatch, commerce, toast, prescriptions, session } = useApp();
   const C = useC();
   const [step, setStep] = useState(0);
-  const [addressId, setAddressId] = useState(addresses.find((a) => a.isDefault)?.id || addresses[0]?.id);
+  // Addresses load asynchronously and can be added/removed, so the selection is derived from the live list
+  // instead of being frozen at mount (which left addressId undefined after a page refresh).
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
+  const addressId = addresses.some((a) => a.id === selectedAddressId)
+    ? selectedAddressId
+    : (addresses.find((a) => a.isDefault)?.id || addresses[0]?.id);
   const [delivery, setDelivery] = useState("express");
   const [slot, setSlot] = useState(DELIVERY_OPTIONS[2].slots[0]);
   const [payment, setPayment] = useState("card");
@@ -25,30 +30,39 @@ export default function Checkout({ nav }) {
   const [instructions, setInstructions] = useState("");
   const [placing, setPlacing] = useState(false);
   const [newAddr, setNewAddr] = useState(null);
+  const placingRef = useRef(false);
 
   const rxStatus = useMemo(() => {
     const ids = cartLines.filter((l) => l.product.flags?.prescriptionRequired).map((l) => l.product.id);
     if (!ids.length) return "none";
-    return prescriptions.find((r) => r.items.some((i) => ids.includes(i)))?.status || "none";
+    const covering = (status) => prescriptions.filter((r) => r.status === status);
+    if (ids.every((id) => covering("approved").some((r) => r.items?.includes(id)))) return "approved";
+    if (covering("pending").some((r) => r.items?.some((i) => ids.includes(i)))) return "pending";
+    return "none";
   }, [cartLines, prescriptions]);
   const requiresPrescription = cartLines.some((l) => l.product.flags?.prescriptionRequired);
 
   /* Totals, stock and coupon validity are priced by the server — never trusted from local state. */
   const [priced, setPriced] = useState({ issues: [], totals: { subtotal: 0, discount: 0, deliveryFee: 0, tax: 0, total: 0 } });
   const [pricing, setPricing] = useState(false);
+  const [priceError, setPriceError] = useState(null);
+  const [priceNonce, setPriceNonce] = useState(0);
   useEffect(() => {
     if (!cartLines.length) return undefined;
     let alive = true;
     setPricing(true);
+    setPriceError(null);
     commerce.priceCart(cartLines.map((l) => ({ productId: l.product.id, variantId: l.variantId, qty: l.qty })), { couponCode: coupon, deliveryOptionId: delivery, branch: storeId })
       .then((res) => { if (alive) setPriced(res); })
-      .catch((err) => { if (alive) toast(err.message || "Couldn't price your cart", "danger"); })
+      .catch((err) => { if (alive) setPriceError(err.message || "Couldn't price your cart"); })
       .finally(() => { if (alive) setPricing(false); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cartLines, coupon, delivery, storeId]);
+  }, [cartLines, coupon, delivery, storeId, priceNonce]);
   const totals = priced.totals;
-  const validation = { ok: priced.issues.length === 0 && !pricing, issues: priced.issues, requiresPrescription };
+  const couponProblem = coupon && priced.totals.couponResult && priced.totals.couponResult.ok === false
+    ? (priced.totals.couponResult.reason || "This coupon can't be applied to your order.") : null;
+  const validation = { ok: priced.issues.length === 0 && !pricing && !priceError && !couponProblem, issues: priced.issues, requiresPrescription };
   const address = addresses.find((a) => a.id === addressId);
   const store = storeById(storeId);
   const deliveryOption = DELIVERY_OPTIONS.find((o) => o.id === delivery) || DELIVERY_OPTIONS[0];
@@ -63,8 +77,11 @@ export default function Checkout({ nav }) {
   }
 
   const placeOrder = async () => {
-    if (!validation.ok) { toast(validation.issues[0]?.message || "Your cart needs attention", "danger"); return; }
+    if (placingRef.current) return;
+    if (!validation.ok) { toast(validation.issues[0]?.message || priceError || couponProblem || "Your cart needs attention", "danger"); return; }
+    if (!addressId) { toast("Choose a delivery address", "danger"); setStep(0); return; }
     if (requiresPrescription && rxStatus !== "approved") { toast("A pharmacist needs to verify your prescription first", "danger"); return; }
+    placingRef.current = true;
     setPlacing(true);
     try {
       const order = await commerce.placeOrder({
@@ -78,12 +95,13 @@ export default function Checkout({ nav }) {
     } catch (err) {
       toast(err.message || "Couldn't place your order", "danger");
     } finally {
+      placingRef.current = false;
       setPlacing(false);
     }
   };
 
   const next = () => {
-    if (step === 0 && !address) { toast("Choose a delivery address", "danger"); return; }
+    if (step === 0 && !addressId) { toast("Choose a delivery address", "danger"); return; }
     if (step === 3) { placeOrder(); return; }
     setStep((s) => s + 1);
   };
@@ -112,12 +130,22 @@ export default function Checkout({ nav }) {
 
       <div className="md:grid md:grid-cols-[1fr_320px] md:gap-6 md:items-start">
         <div className="px-4 md:px-0 space-y-4">
-          {!validation.ok && <InlineNotice tone="danger">{validation.issues[0].message}</InlineNotice>}
+          {priceError && (
+            <InlineNotice tone="danger">
+              {priceError} <button className="font-bold underline" onClick={() => setPriceNonce((n) => n + 1)}>Try again</button>
+            </InlineNotice>
+          )}
+          {priced.issues[0] && <InlineNotice tone="danger">{priced.issues[0].message}</InlineNotice>}
+          {couponProblem && (
+            <InlineNotice tone="warn">
+              {couponProblem} <button className="font-bold underline" onClick={() => dispatch({ type: "COUPON", code: null })}>Remove coupon</button>
+            </InlineNotice>
+          )}
 
           {step === 0 && (
             <>
               {addresses.map((a) => (
-                <AddressCard key={a.id} address={a} selectable selected={a.id === addressId} onSelect={setAddressId} />
+                <AddressCard key={a.id} address={a} selectable selected={a.id === addressId} onSelect={setSelectedAddressId} />
               ))}
               <PillButton variant="outline" full onClick={() => setNewAddr({ label: "Home", name: session.user.name, line1: "", line2: "", city: "", zip: "", phone: session.user.phone, isDefault: false })}>
                 <Plus size={15} /> Add a new address
@@ -244,7 +272,7 @@ export default function Checkout({ nav }) {
               <span className="font-extrabold text-lg" style={{ color: C.navy }}>{fmt(totals.total)}</span>
             </div>
             <PillButton full onClick={next} disabled={placing || pricing || !validation.ok}>
-              {placing ? "Placing order…" : pricing ? "Pricing…" : step === 3 ? `Pay ${fmt(totals.total)}` : "Continue"}
+              {placing ? "Placing order…" : pricing ? "Pricing…" : step === 3 ? (payment === "cod" ? `Place order · ${fmt(totals.total)}` : `Pay ${fmt(totals.total)}`) : "Continue"}
             </PillButton>
             <p className="text-[11px] text-center mt-2" style={{ color: C.muted }}>Fulfilled by {store.name}</p>
           </div>
@@ -257,7 +285,7 @@ export default function Checkout({ nav }) {
           if (!v.ok) { toast(Object.values(v.errors)[0], "danger"); return; }
           try {
             const saved = await commerce.createAddress(newAddr);
-            setAddressId(saved.id); setNewAddr(null); toast("Address saved");
+            setSelectedAddressId(saved.id); setNewAddr(null); toast("Address saved");
           } catch (err) {
             toast(err.message || "Couldn't save the address", "danger");
           }
