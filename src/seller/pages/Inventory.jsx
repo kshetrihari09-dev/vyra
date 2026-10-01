@@ -6,6 +6,8 @@ import { Btn, DataTable, EmptyBlock, Field, Input, Metric, Modal, Notice, Number
 import { hasModule } from "../../data/categories.js";
 import { STORES, storeById } from "../../data/stores.js";
 import { dateTimeLabel, fmt } from "../../utils/format.js";
+import { inventoryApi } from "../../services/api/inventoryApi.js";
+import { productsApi } from "../../services/api/productsApi.js";
 import { TONE } from "../../theme.js";
 
 const REASONS = {
@@ -18,7 +20,8 @@ const MODE_TITLE = { in: "Stock in", out: "Stock out", adjust: "Adjust stock" };
 function StockDialog({ target, mode, onClose }) {
   const s = useS();
   const { seller } = useShop();
-  const { dispatch, toast, products } = useApp();
+  const { dispatch, toast, products, catalog } = useApp();
+  const [saving, setSaving] = useState(false);
   const first = target ? STORES.find((st) => (target.byStore[st.id] || 0) > 0) || STORES[0] : STORES[0];
   const [storeId, setStoreId] = useState(first.id);
   const [qty, setQty] = useState(NaN);
@@ -33,11 +36,23 @@ function StockDialog({ target, mode, onClose }) {
   const delta = mode === "in" ? qty : mode === "out" ? -qty : qty - onHand;
   const after = Number.isFinite(delta) ? Math.max(onHand + delta, 0) : onHand;
 
-  const submit = () => {
+  const submit = async () => {
+    if (saving) return;
     if (!Number.isFinite(qty) || qty < 0 || (mode !== "adjust" && qty === 0) || !Number.isInteger(qty)) { setError(mode === "adjust" ? "Enter the counted quantity as a whole number." : "Enter a whole quantity greater than 0."); return; }
     if (mode === "out" && qty > onHand) { setError(`Only ${onHand} in stock at ${storeById(storeId).name}.`); return; }
     if (mode === "adjust" && delta === 0) { setError("The counted quantity matches what's recorded."); return; }
-    dispatch({ type: "STOCK_ADJUST", productId: target.product.id, variantId: target.variant?.id || null, storeId, delta, reason: note.trim() ? `${reason} — ${note.trim()}` : reason, user: `${seller.name} (seller)` });
+    // Save to the server first — a local-only change never reaches customers and is lost on refresh.
+    setSaving(true);
+    try {
+      await inventoryApi.adjust({ productId: target.product.id, variantId: target.variant?.id || null, branch: storeId, delta, reason: note.trim() ? `${reason} — ${note.trim()}` : reason });
+      try { catalog.cacheProducts([await productsApi.get(target.product.id)]); }
+      catch { dispatch({ type: "STOCK_ADJUST", productId: target.product.id, variantId: target.variant?.id || null, storeId, delta, reason, user: `${seller.name} (seller)` }); }
+    } catch (err) {
+      setError(err.message || "Couldn't save the stock change");
+      setSaving(false);
+      return;
+    }
+    setSaving(false);
     if (mode === "in" && cost > 0) {
       const live = products.find((p) => p.id === target.product.id) || target.product;
       dispatch({ type: "PRODUCT_UPDATE", product: { ...live, costPrice: cost, updatedAt: new Date().toISOString() } });
@@ -49,7 +64,7 @@ function StockDialog({ target, mode, onClose }) {
 
   return (
     <Modal open onClose={onClose} title={MODE_TITLE[mode]} size={460}
-      footer={<><Btn onClick={onClose}>Cancel</Btn><Btn variant="primary" onClick={submit}>Save</Btn></>}>
+      footer={<><Btn onClick={onClose}>Cancel</Btn><Btn variant="primary" onClick={submit} disabled={saving}>{saving ? "Saving…" : "Save"}</Btn></>}>
       <div className="space-y-3.5">
         <div className="flex items-center gap-3"><Thumb product={target.product} size={40} /><div className="min-w-0"><p className="text-sm font-semibold truncate" style={{ color: s.text }}>{target.name}</p><p className="text-xs tnum" style={{ color: s.muted }}>{target.sku}</p></div></div>
         <Field label="Location" hint={`${onHand} in stock here`}>
