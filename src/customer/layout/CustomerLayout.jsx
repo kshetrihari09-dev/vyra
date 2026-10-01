@@ -101,7 +101,7 @@ export function DesktopHeader({ nav, view, query, setQuery }) {
                 else { setQuery(s.label); nav("search"); }
               }} />
           </div>
-          <nav className="flex items-center gap-2 shrink-0">
+          <nav className="flex items-center gap-2 shrink-0 ml-auto">
             {isAdmin(session) && <IconCircleButton icon={ShieldCheck} ariaLabel="Admin console" onClick={() => nav("admin")} />}
             {(role === "staff" || role === "shop_owner") && <IconCircleButton icon={Store} ariaLabel="Shop dashboard" onClick={() => nav("shopDashboard")} />}
             <IconCircleButton icon={Heart} ariaLabel="Wishlist" badge={wishlist.length} onClick={() => nav("wishlist")} />
