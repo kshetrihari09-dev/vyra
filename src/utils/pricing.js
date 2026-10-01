@@ -39,7 +39,7 @@ export function evaluateCoupon(code, lines, { isFirstOrder = false } = {}) {
   const cartTotal = lines.reduce((s, l) => s + l.lineTotal, 0);
 
   if (cartTotal < (coupon.minOrder || 0))
-    return { ok: false, discount: 0, reason: `Spend ${(coupon.minOrder - cartTotal).toFixed(2)} more to use this code.` };
+    return { ok: false, discount: 0, reason: `Spend Rs. ${(coupon.minOrder - cartTotal).toFixed(2)} more to use this code.` };
   if (eligibleTotal <= 0) return { ok: false, discount: 0, reason: "No items in your cart match this offer." };
 
   let discount = coupon.type === "percent" ? (eligibleTotal * coupon.value) / 100 : Math.min(coupon.value, eligibleTotal);

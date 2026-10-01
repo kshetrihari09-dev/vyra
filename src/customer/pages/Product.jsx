@@ -190,7 +190,7 @@ function ProductView({ nav, params, product }) {
                 <p className="text-sm font-semibold" style={{ color: C.navy }}>
                   {product.deliveryAvailable ? `Delivery in ${store.etaMinutes} minutes` : "Delivery unavailable"}
                 </p>
-                <p className="text-xs" style={{ color: C.muted }}>Free over $25 · express from $2.99</p>
+                <p className="text-xs" style={{ color: C.muted }}>Free over Rs. 25 · express from Rs. 2.99</p>
               </div>
             </div>
             <div className="flex items-start gap-2.5">

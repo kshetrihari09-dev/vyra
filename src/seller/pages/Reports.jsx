@@ -7,10 +7,10 @@ import { BarList, TrendChart } from "../components/charts.jsx";
 import { categoryPerformance, paymentSplit, salesSeries, topProducts } from "../../services/sellerAnalytics.js";
 import { PAYMENT_LABELS } from "../../services/orderStatus.js";
 import { downloadCsv } from "../../services/csv.js";
-import { fmt } from "../../utils/format.js";
+import { fmt, fmtCompact } from "../../utils/format.js";
 
 const PERIODS = { 30: "Last 30 days", 90: "Last 90 days", all: "All time" };
-const money = (v) => (v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${Math.round(v)}`);
+const money = fmtCompact;
 
 export default function Reports() {
   const s = useS();

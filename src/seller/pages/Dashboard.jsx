@@ -6,7 +6,7 @@ import { BarList, TrendChart } from "../components/charts.jsx";
 import { Icon } from "../../components/shared/Icon.jsx";
 import { dashboardKpis, pipelineCounts, salesSeries, periodTotals, topProducts } from "../../services/sellerAnalytics.js";
 import { SELLER_STATUSES } from "../../services/orderStatus.js";
-import { dateTimeLabel, fmt } from "../../utils/format.js";
+import { dateTimeLabel, fmt, fmtCompact } from "../../utils/format.js";
 
 const pctChange = (now, before) => (before > 0 ? Math.round(((now - before) / before) * 100) : null);
 
@@ -71,7 +71,7 @@ export default function Dashboard({ nav }) {
           subtitle={`${fmt(totals.revenue)} from ${totals.orders} orders in the last ${days} days`}
           actions={<Segmented label="Period" value={days} onChange={setDays} options={[{ id: 7, label: "7 days" }, { id: 14, label: "14 days" }, { id: 30, label: "30 days" }]} />}>
           {totals.orders === 0 ? <EmptyBlock icon="TrendingUp" title="No sales in this period" message="Sales appear here as orders come in." />
-            : <TrendChart data={series.map((b) => ({ label: b.label, value: b.revenue }))} format={(v) => (v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${Math.round(v)}`)} ariaLabel="Daily sales" />}
+            : <TrendChart data={series.map((b) => ({ label: b.label, value: b.revenue }))} format={fmtCompact} ariaLabel="Daily sales" />}
         </Panel>
         <Panel title="Top selling products" subtitle="By revenue, last 30 days" actions={<Btn size="sm" variant="ghost" onClick={() => nav("shopReports")}>All</Btn>}>
           <BarList items={top.map((t) => ({ key: t.product.id, label: t.product.name, lead: <Thumb product={t.product} size={24} />, value: t.revenue, display: fmt(t.revenue), sub: `${t.units} sold` }))} empty="No sales in the last 30 days." />

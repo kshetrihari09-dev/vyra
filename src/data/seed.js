@@ -75,7 +75,7 @@ export const SEED_ORDERS = [
 
 export const SEED_NOTIFICATIONS = [
   { id: "n1", kind: "delivery", title: "Out for delivery", message: "Order PN-3081 is on its way. Share OTP 4827 with the rider.", time: "12 min ago", unread: true },
-  { id: "n2", kind: "price", title: "Price drop", message: "Vitamin C Glow Serum is now 25% off — down to $25.50.", time: "2 hours ago", unread: true },
+  { id: "n2", kind: "price", title: "Price drop", message: "Vitamin C Glow Serum is now 25% off — down to Rs. 25.50.", time: "2 hours ago", unread: true },
   { id: "n3", kind: "stock", title: "Back in stock", message: "Body Wash · Lavender is available again at Riverside.", time: "Yesterday", unread: false },
   { id: "n4", kind: "prescription", title: "Prescription verified", message: "Your prescription for Amoxicillin 500mg was approved by the pharmacist.", time: "2 days ago", unread: false },
   { id: "n5", kind: "promo", title: "Flash deals are live", message: "Up to 35% off across Grocery, Beauty and Electronics until midnight.", time: "3 days ago", unread: false },

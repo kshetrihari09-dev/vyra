@@ -4,7 +4,7 @@ import { useS } from "../components/tokens.js";
 import { DataTable, EmptyBlock, Metric, PageHeader, Panel, Segmented } from "../components/kit.jsx";
 import { TrendChart } from "../components/charts.jsx";
 import { periodTotals, salesSeries } from "../../services/sellerAnalytics.js";
-import { fmt } from "../../utils/format.js";
+import { fmt, fmtCompact } from "../../utils/format.js";
 
 const GRAN = {
   day: { count: 30, label: "Daily", span: "last 30 days", unit: "day" },
@@ -12,7 +12,7 @@ const GRAN = {
   month: { count: 6, label: "Monthly", span: "last 6 months", unit: "month" },
 };
 const pct = (now, before) => (before > 0 ? Math.round(((now - before) / before) * 100) : null);
-const money = (v) => (v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${Math.round(v)}`);
+const money = fmtCompact;
 
 export default function Sales() {
   const s = useS();

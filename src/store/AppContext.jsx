@@ -86,7 +86,7 @@ const initial = {
   purchaseOrders: SEED_PURCHASE_ORDERS,
   stockMovements: [],
   toasts: [],
-  auditLog: [{ id: "a0", at: "2026-09-15T17:40:00", actor: "Owner", action: "Price updated", detail: "NovaBuds Pro → $96.75" }],
+  auditLog: [{ id: "a0", at: "2026-09-15T17:40:00", actor: "Owner", action: "Price updated", detail: "NovaBuds Pro → Rs. 96.75" }],
 };
 
 export function reducer(state, action) {

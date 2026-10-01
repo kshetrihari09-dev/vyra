@@ -109,7 +109,7 @@ export default function Auth({ nav }) {
               {[
                 { icon: Clock, text: "Express delivery in as little as 18 minutes" },
                 { icon: ShieldCheck, text: "Licensed pharmacy with prescription verification" },
-                { icon: Truck, text: "Free delivery on orders over $25" },
+                { icon: Truck, text: "Free delivery on orders over Rs. 25" },
               ].map((f) => (
                 <div key={f.text} className="flex items-center gap-2.5">
                   <span className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: C.mint }}>

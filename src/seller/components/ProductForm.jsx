@@ -8,7 +8,7 @@ import { BRANDS, brandById, brandByName, slugifyBrand } from "../../data/brands.
 import { STORES } from "../../data/stores.js";
 import { childrenOf, resolveCategory } from "../../data/categories.js";
 import { totalStock } from "../../services/sellerAnalytics.js";
-import { fmt } from "../../utils/format.js";
+import { CURRENCY, fmt } from "../../utils/format.js";
 import { TONE } from "../../theme.js";
 
 const UNITS = ["piece", "pack", "box", "bottle", "bag", "tub", "pair", "set", "dozen", "kg", "g", "litre", "ml"];
@@ -153,17 +153,17 @@ export default function ProductForm({ open, product, seller, onClose, onOpenInve
             {f.variants.map((v, i) => (
               <div key={v.id} className="grid grid-cols-[1fr_1fr_1fr] gap-2 items-end">
                 <Field label={i === 0 ? "Variant" : undefined}><div className="h-9 flex items-center text-sm truncate" style={{ color: s.text }}>{v.label}<span className="ml-2 text-xs" style={{ color: s.muted }}>{v.sku}</span></div></Field>
-                <Field label={i === 0 ? "MRP" : undefined}><NumberInput step="0.01" prefix="$" value={v.price} onChange={(n) => set({ variants: f.variants.map((x, j) => (j === i ? { ...x, price: n } : x)) })} /></Field>
-                <Field label={i === 0 ? "Selling price" : undefined}><NumberInput step="0.01" prefix="$" value={v.salePrice} onChange={(n) => set({ variants: f.variants.map((x, j) => (j === i ? { ...x, salePrice: n } : x)) })} /></Field>
+                <Field label={i === 0 ? "MRP" : undefined}><NumberInput step="0.01" prefix={CURRENCY} value={v.price} onChange={(n) => set({ variants: f.variants.map((x, j) => (j === i ? { ...x, price: n } : x)) })} /></Field>
+                <Field label={i === 0 ? "Selling price" : undefined}><NumberInput step="0.01" prefix={CURRENCY} value={v.salePrice} onChange={(n) => set({ variants: f.variants.map((x, j) => (j === i ? { ...x, salePrice: n } : x)) })} /></Field>
               </div>
             ))}
             {err("variants") && <p className="text-xs font-medium" style={{ color: TONE.danger }}>{err("variants")}</p>}
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Field label="Purchase price" error={err("costPrice")} hint="Your cost per unit"><NumberInput step="0.01" prefix="$" value={f.costPrice} onChange={(n) => set({ costPrice: n })} error={err("costPrice")} /></Field>
-            <Field label="MRP" error={err("price")}><NumberInput step="0.01" prefix="$" value={f.price} onChange={(n) => set({ price: n })} error={err("price")} /></Field>
-            <Field label="Selling price" error={err("salePrice")}><NumberInput step="0.01" prefix="$" value={f.salePrice} onChange={(n) => set({ salePrice: n })} error={err("salePrice")} /></Field>
+            <Field label="Purchase price" error={err("costPrice")} hint="Your cost per unit"><NumberInput step="0.01" prefix={CURRENCY} value={f.costPrice} onChange={(n) => set({ costPrice: n })} error={err("costPrice")} /></Field>
+            <Field label="MRP" error={err("price")}><NumberInput step="0.01" prefix={CURRENCY} value={f.price} onChange={(n) => set({ price: n })} error={err("price")} /></Field>
+            <Field label="Selling price" error={err("salePrice")}><NumberInput step="0.01" prefix={CURRENCY} value={f.salePrice} onChange={(n) => set({ salePrice: n })} error={err("salePrice")} /></Field>
             <Field label="Discount" hint="Sets the selling price"><NumberInput step="0.1" suffix="%" value={disc} onChange={(n) => Number.isFinite(n) && f.price > 0 && set({ salePrice: round(f.price * (1 - Math.min(Math.max(n, 0), 100) / 100)) })} /></Field>
           </div>
         )}

@@ -5,7 +5,7 @@ import { useS } from "../components/tokens.js";
 import { Btn, DataTable, EmptyBlock, Field, Input, Metric, Modal, Notice, NumberInput, PageHeader, Pagination, Panel, Pill, SearchField, Select, Tabs, Thumb, useTable } from "../components/kit.jsx";
 import { hasModule } from "../../data/categories.js";
 import { STORES, storeById } from "../../data/stores.js";
-import { dateTimeLabel, fmt } from "../../utils/format.js";
+import { CURRENCY, dateTimeLabel, fmt } from "../../utils/format.js";
 import { inventoryApi } from "../../services/api/inventoryApi.js";
 import { productsApi } from "../../services/api/productsApi.js";
 import { TONE } from "../../theme.js";
@@ -71,7 +71,7 @@ function StockDialog({ target, mode, onClose }) {
           <Select value={storeId} onChange={(e) => { setStoreId(e.target.value); setError(""); }}>{STORES.map((st) => <option key={st.id} value={st.id}>{st.name} ({target.byStore[st.id] || 0})</option>)}</Select>
         </Field>
         <Field label={mode === "adjust" ? "Counted quantity" : "Quantity"} error={error}><NumberInput value={qty} onChange={(n) => { setQty(n); setError(""); }} error={error} autoFocus /></Field>
-        {mode === "in" && <Field label="Purchase price per unit" hint="Optional — updates this product's purchase price"><NumberInput step="0.01" prefix="$" value={cost} onChange={setCost} /></Field>}
+        {mode === "in" && <Field label="Purchase price per unit" hint="Optional — updates this product's purchase price"><NumberInput step="0.01" prefix={CURRENCY} value={cost} onChange={setCost} /></Field>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Reason"><Select value={reason} onChange={(e) => setReason(e.target.value)}>{REASONS[mode].map((r) => <option key={r}>{r}</option>)}</Select></Field>
           <Field label="Note"><Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" /></Field>

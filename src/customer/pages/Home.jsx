@@ -96,7 +96,7 @@ export default function Home({ nav }) {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mt-3">
           {[
-            { icon: Truck, title: "Free delivery", sub: "On orders over $25" },
+            { icon: Truck, title: "Free delivery", sub: "On orders over Rs. 25" },
             { icon: ShieldCheck, title: "Verified sellers", sub: "Licensed pharmacy" },
             { icon: Percent, title: "Daily deals", sub: "Up to 35% off" },
             { icon: Headphones, title: "24/7 support", sub: "Chat or call" },

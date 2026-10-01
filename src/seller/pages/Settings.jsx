@@ -1,3 +1,4 @@
+import { CURRENCY } from "../../utils/format.js";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../../store/AppContext.jsx";
 import { useShop } from "../hooks/useShopData.js";
@@ -150,9 +151,9 @@ export default function Settings() {
               <Toggle label="Offer pickup" hint="Customers can collect orders from your shop" on={d.delivery.pickup} onChange={(v) => nest("delivery", { pickup: v })} />
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-3">
                 <Field label="Delivery radius"><NumberInput suffix="km" value={d.delivery.radiusKm} onChange={(n) => nest("delivery", { radiusKm: n })} /></Field>
-                <Field label="Delivery fee"><NumberInput step="0.01" prefix="$" value={d.delivery.fee} onChange={(n) => nest("delivery", { fee: n })} /></Field>
-                <Field label="Free delivery above"><NumberInput step="0.01" prefix="$" value={d.delivery.freeAbove} onChange={(n) => nest("delivery", { freeAbove: n })} /></Field>
-                <Field label="Minimum order"><NumberInput step="0.01" prefix="$" value={d.delivery.minOrder} onChange={(n) => nest("delivery", { minOrder: n })} /></Field>
+                <Field label="Delivery fee"><NumberInput step="0.01" prefix={CURRENCY} value={d.delivery.fee} onChange={(n) => nest("delivery", { fee: n })} /></Field>
+                <Field label="Free delivery above"><NumberInput step="0.01" prefix={CURRENCY} value={d.delivery.freeAbove} onChange={(n) => nest("delivery", { freeAbove: n })} /></Field>
+                <Field label="Minimum order"><NumberInput step="0.01" prefix={CURRENCY} value={d.delivery.minOrder} onChange={(n) => nest("delivery", { minOrder: n })} /></Field>
                 <Field label="Preparation time"><NumberInput suffix="min" value={d.delivery.prepMinutes} onChange={(n) => nest("delivery", { prepMinutes: n })} /></Field>
               </div>
             </div>

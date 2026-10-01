@@ -1,4 +1,9 @@
-export const fmt = (n) => `$${Number(n || 0).toFixed(2)}`;
+/* Nepali rupee. Change the symbol here (e.g. to "रू") and every price in the app follows. */
+export const CURRENCY = "Rs.";
+/** "Rs. 1,23,456.50" — two decimals, Nepali/Indian lakh grouping. */
+export const fmt = (n) => `${CURRENCY} ${Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** Short form for chart axes and tiles: "Rs. 1.5k", "Rs. 250". */
+export const fmtCompact = (v) => (v >= 1000 ? `${CURRENCY} ${(v / 1000).toFixed(1)}k` : `${CURRENCY} ${Math.round(v)}`);
 export const pct = (n) => `${Math.round(n)}%`;
 export const titleCase = (s) => String(s || "").replace(/(^|\s)\S/g, (t) => t.toUpperCase());
 
