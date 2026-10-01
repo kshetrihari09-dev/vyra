@@ -11,6 +11,11 @@
 
 const BASE = (import.meta.env?.VITE_API_URL || "/api").replace(/\/+$/, "");
 
+/** Absolute-or-relative URL of a public product photo, from the storage key the API returns. */
+export const productImageUrl = (key) => `${BASE}/product-images/${encodeURIComponent(key)}`;
+/** Inverse of productImageUrl — the storage key if `src` is one of our photo URLs, else null. */
+export const productImageKey = (src) => { const m = /\/product-images\/([^/?#]+)$/.exec(String(src || "")); return m ? decodeURIComponent(m[1]) : null; };
+
 export class ApiError extends Error {
   constructor(status, code, message, details) {
     super(message);

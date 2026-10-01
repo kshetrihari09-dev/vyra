@@ -3,6 +3,7 @@
    product's category, so new categories get sensible art for free. */
 import React, { memo, useState } from "react";
 import { resolveCategory } from "../../data/categories.js";
+import { productImageUrl } from "../../services/api/client.js";
 
 function Shape({ shape, color, accent, w = 120, h = 120 }) {
   const s = { medbox: MedBox, bottle: Bottle, bag: Bag, tube: Tube, device: Device, cosmetic: Cosmetic, carton: Carton, apparel: Apparel, box: BoxArt }[shape] || BoxArt;
@@ -100,7 +101,7 @@ export const ProductArt = memo(function ProductArt({ product, size = 120, varian
      string URL is rendered, and a load failure drops back to the drawn art instead of a broken-image icon. */
   const [failed, setFailed] = useState(false);
   const first = product.images?.find?.((i) => i?.primary) || product.images?.[0];
-  const candidate = typeof first === "string" ? first : first?.url || first?.src;
+  const candidate = typeof first === "string" ? first : first?.url || first?.src || (first?.key ? productImageUrl(first.key) : null);
   const photo = !failed && typeof candidate === "string" && /^(https?:|data:image\/|\/)/.test(candidate) ? candidate : null;
   if (photo) {
     return (

@@ -1,4 +1,4 @@
-import { api } from "./client.js";
+import { api, productImageKey } from "./client.js";
 
 /** Only send what the server accepts; server-owned fields (stock, rating, sold, batches, createdAt) are never sent. */
 export function toProductPayload(p) {
@@ -51,6 +51,10 @@ export const productsApi = {
   create: async (product, { openingStock } = {}) =>
     (await api.post("/products", { ...toProductPayload(product), ...(openingStock ? { openingStock } : {}) })).product,
   update: async (product) => (await api.put(`/products/${encodeURIComponent(product.id)}`, toProductPayload(product))).product,
+  /** Replaces the photo list. Entries: a new upload (data URL) or an existing photo (its URL or storage key). */
+  setImages: async (id, images) => (await api.put(`/products/${encodeURIComponent(id)}/images`, {
+    images: images.map((i) => (i.startsWith("data:") ? i : productImageKey(i) || i)),
+  })).product,
   remove: (id) => api.delete(`/products/${encodeURIComponent(id)}`),
 };
 

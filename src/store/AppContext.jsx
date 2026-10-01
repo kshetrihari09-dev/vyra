@@ -358,13 +358,24 @@ export function AppProvider({ children }) {
       reload: loadCatalog,
       cacheProducts: (items) => { if (items?.length) dispatch({ type: "PRODUCTS_UPSERT", products: items }); },
       async createProduct(product, opts) {
-        const saved = await productsApi.create(product, opts);
+        const { images, ...apiOpts } = opts || {};
+        let saved = await productsApi.create(product, Object.keys(apiOpts).length ? apiOpts : undefined);
+        // Photos go through their own endpoint (they're too big for the product JSON). The product already exists by now,
+        // so a photo failure is reported but doesn't lose the listing.
+        if (images?.length) {
+          try { saved = await productsApi.setImages(saved.id, images); }
+          catch (err) { dispatch({ type: "PRODUCTS_UPSERT", products: [saved] }); throw new Error(`Product saved, but its photos didn't upload: ${err.message || "try editing it again"}`); }
+        }
         dispatch({ type: "PRODUCTS_UPSERT", products: [saved] });
         if (product.brandName) await refreshBrands();
         return saved;
       },
-      async updateProduct(product) {
-        const saved = await productsApi.update(product);
+      async updateProduct(product, { images } = {}) {
+        let saved = await productsApi.update(product);
+        if (images) {
+          try { saved = await productsApi.setImages(saved.id, images); }
+          catch (err) { dispatch({ type: "PRODUCTS_UPSERT", products: [saved] }); throw new Error(`Changes saved, but the photos didn't update: ${err.message || "try again"}`); }
+        }
         dispatch({ type: "PRODUCTS_UPSERT", products: [saved] });
         return saved;
       },

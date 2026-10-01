@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useApp } from "../../store/AppContext.jsx";
 import { useS } from "./tokens.js";
 import { Btn, Drawer, Field, Input, NumberInput, Notice, Segmented, Select, Textarea } from "./kit.jsx";
+import { productImageUrl } from "../../services/api/client.js";
 import ImageUploader from "./ImageUploader.jsx";
 import { BRANDS, brandById, brandByName, slugifyBrand } from "../../data/brands.js";
 import { STORES } from "../../data/stores.js";
@@ -42,7 +43,8 @@ export default function ProductForm({ open, product, seller, onClose, onOpenInve
   const { categories, products, dispatch, toast, catalog } = useApp();
   const s = useS();
   const isNew = !product;
-  const start = useMemo(() => (product ? { ...product, images: product.images || [] } : blank(seller, categories)), [product, seller, categories, open]);
+  // The API sends photos as { key } objects; the uploader works with plain URLs/data URLs, so convert here and back on save.
+  const start = useMemo(() => (product ? { ...product, images: (product.images || []).map((i) => (typeof i === "string" ? i : productImageUrl(i.key))) } : blank(seller, categories)), [product, seller, categories, open]);
   const [f, setF] = useState(start);
   const [brandName, setBrandName] = useState(product ? brandById(product.brandId).name : "");
   const [opening, setOpening] = useState(0);
@@ -98,10 +100,10 @@ export default function ProductForm({ open, product, seller, onClose, onOpenInve
         // product. (It used to be added to the local cache afterwards, which the next fetch silently threw away.) Whole
         // units only: stock is an integer, so a fraction is rounded exactly as it was before.
         const openingQty = !hasVariants ? Math.round(opening) : 0;
-        await catalog.createProduct(next, openingQty > 0 ? { openingStock: { [STORES[0].id]: openingQty } } : undefined);
+        await catalog.createProduct(next, { ...(openingQty > 0 ? { openingStock: { [STORES[0].id]: openingQty } } : {}), images: f.images });
         toast("Submitted for review — it goes live once approved");
       } else {
-        await catalog.updateProduct(next);
+        await catalog.updateProduct(next, { images: f.images });
         toast("Product updated");
       }
       dispatch({ type: "AUDIT", entry: { actor: `${seller.name} (seller)`, action: isNew ? "Product submitted" : "Product updated", detail: next.name } });
