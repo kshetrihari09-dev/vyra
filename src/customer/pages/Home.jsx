@@ -8,7 +8,6 @@ import { ProductArt } from "../../components/shared/ProductArt.jsx";
 import { Icon, ArrowRight, Clock, Percent, Tag, Truck, ShieldCheck, Headphones, MapPin } from "../../components/shared/Icon.jsx";
 import { topCategories, categoryTreeIds } from "../../data/categories.js";
 import { BRANDS } from "../../data/brands.js";
-import { COUPONS } from "../../data/promotions.js";
 import { STORES } from "../../data/stores.js";
 import { productById } from "../../data/products.js";
 import { sortProducts } from "../../utils/search.js";
@@ -205,25 +204,6 @@ export default function Home({ nav }) {
         </section>
       )}
 
-      {/* 12 — Offers & Coupons */}
-      <section className="mb-4">
-        <SectionHeader title="Offers & Coupons" subtitle="Tap a code to copy it" onViewAll={() => nav("offers")} />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 px-4 md:px-0">
-          {COUPONS.slice(0, 3).map((c) => (
-            <button key={c.code} onClick={() => { navigator.clipboard?.writeText(c.code); toast(`Code ${c.code} copied`); }}
-              className="rounded-2xl p-4 text-left flex items-center gap-3" style={{ background: C.white, border: `1px dashed ${C.primary}` }}>
-              <span className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: C.mint }}>
-                <Tag size={18} style={{ color: C.primary }} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block font-extrabold text-sm" style={{ color: C.navy }}>{c.code}</span>
-                <span className="block text-xs truncate" style={{ color: C.muted }}>{c.label}</span>
-              </span>
-              <Badge tone="mint">Copy</Badge>
-            </button>
-          ))}
-        </div>
-      </section>
     </Page>
   );
 }

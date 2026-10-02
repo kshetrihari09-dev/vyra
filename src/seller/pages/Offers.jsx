@@ -3,7 +3,6 @@ import { useApp } from "../../store/AppContext.jsx";
 import { useShop } from "../hooks/useShopData.js";
 import { useS } from "../components/tokens.js";
 import { Btn, DataTable, EmptyBlock, Field, Metric, Notice, NumberInput, PageHeader, Pagination, Panel, Pill, SearchField, Thumb, useTable } from "../components/kit.jsx";
-import { COUPONS } from "../../data/promotions.js";
 import { resolveCategory } from "../../data/categories.js";
 import { priceOf } from "../../utils/pricing.js";
 import { discountPct } from "../../services/sellerAnalytics.js";
@@ -50,18 +49,12 @@ export default function Offers() {
     { key: "disc", label: "Discount", sortable: true, align: "right", mobile: "aside", render: (r) => (r.disc > 0 ? <Pill tone="ok">{r.disc}% off</Pill> : <span style={{ color: s.faint }}>None</span>) },
   ];
 
-  /* Codes that a customer could use on this shop's products. */
-  const brands = new Set(seller.brands || []);
-  const cats = new Set(listings.flatMap((p) => { const c = resolveCategory(p.categoryId, categories); return [p.categoryId, c?.root?.id]; }).filter(Boolean));
-  const codes = COUPONS.filter((c) => c.scope.type === "all" || (c.scope.type === "brand" && brands.has(c.scope.id)) || (c.scope.type === "category" && cats.has(c.scope.id)));
-
   return (
     <div>
-      <PageHeader title="Offers" description="Discount your products and see which coupon codes customers can use on them." />
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+      <PageHeader title="Offers" description="Discount your products." />
+      <div className="grid grid-cols-2 gap-3 mb-4">
         <Metric label="Products on offer" icon="Megaphone" value={onSale} hint={`of ${rows.length} live or paused`} />
         <Metric label="Deepest discount" icon="TrendingUp" value={`${Math.max(...rows.map((r) => r.disc), 0)}%`} hint="Off MRP" />
-        <Metric label="Applicable coupon codes" icon="Receipt" value={codes.length} hint="Set by Vyra" />
       </div>
 
       <Panel title="Product discounts" subtitle="Changes update the selling price customers see straight away" padded={false}
@@ -76,20 +69,6 @@ export default function Offers() {
         </div>
         <DataTable columns={columns} rows={table.visible} rowKey={(r) => r.id} sort={table.sort} onSort={table.toggleSort} empty={<EmptyBlock icon="Megaphone" title="No products to discount" message="Add products first, then run offers on them." />} />
         <Pagination page={table.page} pageSize={table.pageSize} total={table.total} onPage={table.setPage} />
-      </Panel>
-
-      <Panel className="mt-4" title="Coupon codes on your products" subtitle="Customers enter these at checkout">
-        {codes.length === 0 ? <p className="text-sm" style={{ color: s.muted }}>No coupon codes currently apply to your products.</p> : (
-          <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {codes.map((c) => (
-              <li key={c.code} className="flex items-center gap-3 p-3" style={{ border: `1px dashed ${s.line}`, borderRadius: s.r }}>
-                <span className="tnum font-semibold text-sm px-2 py-1" style={{ background: s.accentSoft, color: s.accent, borderRadius: 6 }}>{c.code}</span>
-                <span className="text-sm" style={{ color: s.text }}>{c.label}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="mt-4"><Notice tone="info">Coupon codes are managed by Vyra for now. Creating your own shop-only codes isn't available yet.</Notice></div>
       </Panel>
     </div>
   );

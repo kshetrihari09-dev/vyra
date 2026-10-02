@@ -7,7 +7,6 @@ import { ProductRail } from "../components/ProductCard.jsx";
 import { ShoppingCart, Tag, X, Check, ShieldCheck, Bookmark } from "../../components/shared/Icon.jsx";
 
 import { fmt } from "../../utils/format.js";
-import { COUPONS } from "../../data/promotions.js";
 import { TONE } from "../../theme.js";
 
 export default function Cart({ nav }) {
@@ -142,18 +141,6 @@ export default function Cart({ nav }) {
             )}
           </div>
 
-          <div className="rounded-2xl p-4 mt-3" style={{ background: C.mint }}>
-            <p className="text-xs font-bold mb-2" style={{ color: C.primary }}>Available coupons</p>
-            <div className="space-y-1.5">
-              {COUPONS.slice(0, 3).map((c) => (
-                <button key={c.code} onClick={() => { setCode(c.code); dispatch({ type: "COUPON", code: c.code }); }}
-                  className="w-full flex items-center justify-between text-left">
-                  <span className="text-xs" style={{ color: C.navy }}>{c.label}</span>
-                  <Badge tone="mint">{c.code}</Badge>
-                </button>
-              ))}
-            </div>
-          </div>
         </aside>
       </div>
 
