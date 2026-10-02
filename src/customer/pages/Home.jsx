@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { useApp, useC } from "../../store/AppContext.jsx";
 import { Page } from "../layout/CustomerLayout.jsx";
 import { SectionHeader, PillButton, Badge } from "../../components/shared/ui.jsx";
+import HeroArt from "../components/HeroArt.jsx";
 import { CategoryCard } from "../components/CategoryCard.jsx";
 import { ProductRail, ProductCard } from "../components/ProductCard.jsx";
 import { ProductArt } from "../../components/shared/ProductArt.jsx";
@@ -79,17 +80,8 @@ export default function Home({ nav }) {
               </button>
             </div>
           </div>
-          <div className="hidden sm:block shrink-0 w-28 md:w-56 opacity-95">
-            <div className="grid grid-cols-2 gap-2">
-              {["cold-brew-coffee", "wireless-earbuds", "vitamin-c-serum", "paracetamol-500"].map((id) => {
-                const p = productById(id, products);
-                return p ? (
-                  <div key={id} className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,.9)", height: 76 }}>
-                    <ProductArt product={p} size={54} rounded={false} bg="transparent" />
-                  </div>
-                ) : null;
-              })}
-            </div>
+          <div className="hidden sm:block shrink-0 w-44 md:w-80">
+            <HeroArt />
           </div>
         </div>
 
