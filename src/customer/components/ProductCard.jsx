@@ -52,41 +52,41 @@ export const ProductCard = memo(function ProductCard({ product, onOpen, wide = f
           commerce.toggleWishlist(product.id).catch((err) => toast(err.message || "Couldn't update favorites", "danger"));
         }} size={30} />}
         {discountPct > 0 && (
-          <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md text-[10px] font-extrabold" style={{ background: TONE.danger, color: "#fff" }}>
+          <span className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md text-[9px] font-extrabold" style={{ background: TONE.danger, color: "#fff" }}>
             {discountPct}% OFF
           </span>
         )}
       </div>
 
-      <div className={`flex-1 min-w-0 flex flex-col ${wide ? "" : "p-3 pt-2.5"}`}>
+      <div className={`flex-1 min-w-0 flex flex-col ${wide ? "" : "p-2.5 pt-2"}`}>
         <div className="flex items-center gap-1.5 mb-1">
-          <span className="text-[10px] font-bold uppercase tracking-wide truncate" style={{ color: brand.fg }}>{brand.name}</span>
+          <span className="text-[9px] font-bold uppercase tracking-wide truncate" style={{ color: brand.fg }}>{brand.name}</span>
           {rx && <ShieldCheck size={11} style={{ color: TONE.info }} />}
         </div>
 
-        <p className="font-bold text-[13px] md:text-sm leading-snug line-clamp-2" style={{ color: C.navy }}>{product.name}</p>
+        <p className="font-bold text-[12px] leading-snug line-clamp-2" style={{ color: C.navy }}>{product.name}</p>
 
         <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-          <span className="text-[11px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: C.mint, color: C.primary }}>{highlight}</span>
-          <Rating value={product.rating} reviews={wide ? product.reviews : null} size={11} />
+          <span className="text-[10px] px-1.5 py-0.5 rounded-md font-semibold" style={{ background: C.mint, color: C.primary }}>{highlight}</span>
+          <Rating value={product.rating} reviews={wide ? product.reviews : null} size={10} />
         </div>
 
         {wide && <p className="text-xs mt-1.5 line-clamp-2 hidden md:block" style={{ color: C.muted }}>{product.description}</p>}
 
         <div className="mt-auto pt-2 flex items-end justify-between gap-2">
           <div className="min-w-0">
-            <div className="flex items-baseline gap-1.5">
-              <span className="font-extrabold text-[15px]" style={{ color: C.navy }}>{fmt(price)}</span>
-              {mrp > price && <span className="text-[11px] line-through" style={{ color: C.muted }}>{fmt(mrp)}</span>}
+            <div className="flex items-baseline gap-1 whitespace-nowrap">
+              <span className="font-extrabold text-[13px]" style={{ color: C.navy }}>{fmt(price)}</span>
+              {mrp > price && <span className="text-[10px] line-through" style={{ color: C.muted }}>{fmt(mrp)}</span>}
             </div>
-            <span className="text-[10px] font-bold" style={{ color: stock.level === "out" ? TONE.danger : stock.level === "low" ? TONE.warn : TONE.ok }}>
+            <span className="text-[9px] font-bold" style={{ color: stock.level === "out" ? TONE.danger : stock.level === "low" ? TONE.warn : TONE.ok }}>
               {stock.label}
             </span>
           </div>
           <button aria-label={`Add ${product.name} to cart`} onClick={add} disabled={stock.level === "out"}
-            className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform active:scale-90 disabled:opacity-40"
+            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform active:scale-90 disabled:opacity-40"
             style={{ background: stock.level === "out" ? "#E7ECEE" : C.primary }}>
-            <Plus size={17} color="#fff" />
+            <Plus size={15} color="#fff" />
           </button>
         </div>
       </div>
