@@ -90,7 +90,7 @@ const BoxArt = ({ color, accent, w, h }) => (
 );
 
 /** Card / hero artwork for any product in any category. */
-export const ProductArt = memo(function ProductArt({ product, size = 120, variantId = null, rounded = true, bg }) {
+export const ProductArt = memo(function ProductArt({ product, size = 120, variantId = null, rounded = true, bg, fit = "contain" }) {
   const cat = resolveCategory(product.categoryId);
   const variant = variantId ? (product.variants || []).find((v) => v.id === variantId) : null;
   const color = variant?.options?.color?.startsWith?.("#") ? variant.options.color : product.art?.color || cat?.fg || "#0FAF8F";
@@ -105,8 +105,8 @@ export const ProductArt = memo(function ProductArt({ product, size = 120, varian
   const photo = !failed && typeof candidate === "string" && /^(https?:|data:image\/|\/)/.test(candidate) ? candidate : null;
   if (photo) {
     return (
-      <div className="overflow-hidden" style={{ borderRadius: rounded ? 18 : 0, width: "100%", height: "100%", background: bg || accent }}>
-        <img src={photo} alt={product.name} className="w-full h-full object-cover" loading="lazy" onError={() => setFailed(true)} />
+      <div className="overflow-hidden" style={{ borderRadius: rounded ? 18 : 0, width: "100%", height: "100%", background: bg || (fit === "contain" ? "#fff" : accent), padding: fit === "contain" ? "4%" : 0, boxSizing: "border-box" }}>
+        <img src={photo} alt={product.name} className={`w-full h-full ${fit === "contain" ? "object-contain" : "object-cover"}`} loading="lazy" onError={() => setFailed(true)} />
       </div>
     );
   }
