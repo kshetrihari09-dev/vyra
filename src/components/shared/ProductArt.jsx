@@ -104,9 +104,15 @@ export const ProductArt = memo(function ProductArt({ product, size = 120, varian
   const candidate = typeof first === "string" ? first : first?.url || first?.src || (first?.key ? productImageUrl(first.key) : null);
   const photo = !failed && typeof candidate === "string" && /^(https?:|data:image\/|\/)/.test(candidate) ? candidate : null;
   if (photo) {
+    const contain = fit === "contain";
     return (
-      <div className="overflow-hidden" style={{ borderRadius: rounded ? 18 : 0, width: "100%", height: "100%", background: bg || (fit === "contain" ? "#fff" : accent), padding: fit === "contain" ? "4%" : 0, boxSizing: "border-box" }}>
-        <img src={photo} alt={product.name} className={`w-full h-full ${fit === "contain" ? "object-contain" : "object-cover"}`} loading="lazy" onError={() => setFailed(true)} />
+      <div style={{ position: "relative", overflow: "hidden", borderRadius: rounded ? 18 : 0, width: "100%", height: "100%", minHeight: 0, background: bg || (contain ? "#fff" : accent) }}>
+        <img
+          src={photo}
+          alt={product.name}
+          onError={() => setFailed(true)}
+          style={{ position: "absolute", top: contain ? "4%" : 0, left: contain ? "4%" : 0, width: contain ? "92%" : "100%", height: contain ? "92%" : "100%", objectFit: contain ? "contain" : "cover", display: "block" }}
+        />
       </div>
     );
   }
