@@ -77,9 +77,3 @@ export const sellerForBrand = (brandId) => BRAND_SELLER[brandId] || "vyra-retail
     sellerId; the older catalogue attributes sellers via brand instead. */
 export const sellerForProduct = (product) => product?.sellerId || sellerForBrand(product?.brandId);
 export const brandsForSeller = (sellerId) => Object.entries(BRAND_SELLER).filter(([, s]) => s === sellerId).map(([b]) => b);
-
-export const SELLER_PAYOUTS_SEED = [
-  { id: "po-1", sellerId: "novatech-official", amount: 612.4, at: "2026-08-15T10:00:00", method: "Bank transfer •••• 8834" },
-  { id: "po-2", sellerId: "auralux-beauty", amount: 284.1, at: "2026-08-01T10:00:00", method: "Bank transfer •••• 2207" },
-  { id: "po-3", sellerId: "urbanthread-apparel", amount: 190.6, at: "2026-07-20T10:00:00", method: "Bank transfer •••• 7742" },
-];

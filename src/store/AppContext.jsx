@@ -2,11 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useReducer, useCa
 import { THEMES } from "../theme.js";
 import { productById } from "../data/products.js";
 import { STORES } from "../data/stores.js";
-import { CARDS } from "../data/seed.js";
 import { notificationsApi } from "../services/api/notificationsApi.js";
-import { SELLERS } from "../data/sellers.js";
-import { SEED_PURCHASE_ORDERS } from "../data/suppliers.js";
-import { REGISTERED_MOBILES, REGISTERED_EMAILS } from "../data/customers.js";
 import { priceOf } from "../utils/pricing.js";
 import { maxAddable } from "../utils/inventory.js";
 import { authApi } from "../services/api/authApi.js";
@@ -60,8 +56,8 @@ const initial = {
      re-checks roles/permissions from the database on every protected request and never trusts it.
      shopOwnerSellerId is derived from approved shop applications until the seller API arrives (Phase 6). */
   session: GUEST_SESSION,
-  registeredMobiles: [...REGISTERED_MOBILES],
-  registeredEmails: [...REGISTERED_EMAILS],
+  registeredMobiles: [],
+  registeredEmails: [],
   shopApplications: [], // local drafts + the caller's (or, for staff, every) server-side application — see loadCommerce
   cart: [],
   saved: [],
@@ -72,21 +68,21 @@ const initial = {
   catalogVersion: 0,
   catalogTotal: 0,
   addresses: [], // loaded from the API once signed in (see loadCommerce)
-  cards: CARDS,
+  cards: [],
   orders: [], // loaded from the API — customers see their own, staff with orders:read_all see everything
   prescriptions: [], // loaded from the API for signed-in customers/pharmacists (see loadCommerce)
   notifications: [],   // loaded from the API for signed-in users (see loadNotifications); local until then
   notificationsUnread: 0,
-  recentlyViewed: ["cold-brew-coffee", "cotton-tshirt", "paracetamol-500"],
-  recentSearches: ["olive oil", "earbuds"],
+  recentlyViewed: [],
+  recentSearches: [],
   coupon: null,
-  sellers: SELLERS,
+  sellers: [],
   sellerPayouts: [],
-  currentSellerId: "novatech-official",
-  purchaseOrders: SEED_PURCHASE_ORDERS,
+  currentSellerId: null,
+  purchaseOrders: [],
   stockMovements: [],
   toasts: [],
-  auditLog: [{ id: "a0", at: "2026-09-15T17:40:00", actor: "Owner", action: "Price updated", detail: "NovaBuds Pro → Rs. 96.75" }],
+  auditLog: [],
 };
 
 export function reducer(state, action) {
