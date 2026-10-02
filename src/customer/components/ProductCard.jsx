@@ -45,7 +45,7 @@ export const ProductCard = memo(function ProductCard({ product, onOpen, wide = f
       className={`relative rounded-2xl overflow-hidden flex cursor-pointer transition-shadow hover:shadow-[0_6px_24px_rgba(6,63,80,.10)] ${wide ? "flex-row gap-3 p-3" : "flex-col"}`}
       style={{ background: C.white, border: `1px solid ${C.border}` }}>
 
-      <div className={`relative shrink-0 ${wide ? "w-24 h-24 rounded-xl overflow-hidden" : "w-full"}`} style={{ height: wide ? 96 : 116 }}>
+      <div className={`relative shrink-0 ${wide ? "w-24 h-24 rounded-xl overflow-hidden" : "w-full"}`} style={{ height: wide ? 96 : 140 }}>
         <ProductArt product={product} size={wide ? 72 : 92} rounded={false} />
         {!wide && <FavoriteButton active={isFav} onClick={() => {
           if (!session.signedIn) { toast("Sign in to save favorites"); return; }
