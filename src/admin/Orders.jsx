@@ -6,6 +6,7 @@ import { ORDER_STAGES, STATUS_STYLE, stageIndex } from "../customer/components/O
 import { ChevronRight } from "../components/shared/Icon.jsx";
 import { storeById } from "../data/stores.js";
 import { fmt, dateTimeLabel } from "../utils/format.js";
+import { isPaymentCleared, paymentStatusOf } from "../services/orderStatus.js";
 
 const FILTERS = [
   { id: "all", label: "All" },
@@ -73,6 +74,8 @@ export default function AdminOrders({ nav }) {
           const next = stageIndex(o.status) < stageIndex("packed") ? ORDER_STAGES[stageIndex(o.status) + 1] : null; // beyond "packed" the delivery module moves it
           const del = deliveryOf(o);
           const live = !["delivered", "cancelled", "returned"].includes(o.status);
+          const pay = paymentStatusOf(o);
+          const gated = !!next && !!o.actions?.blocked && o.actions.next === next.id; // prepaid + unpaid: the backend refuses packing
           return (
             <div key={o.id} className="flex items-center gap-3 p-3.5" style={{ borderTop: i ? `1px solid ${C.border}` : "none" }}>
               <button onClick={() => nav("orderDetails", { orderId: o.id })} className="flex-1 min-w-0 text-left">
@@ -83,12 +86,14 @@ export default function AdminOrders({ nav }) {
               </button>
               <span className="text-sm font-bold shrink-0" style={{ color: C.navy }}>{fmt(o.totals.total)}</span>
               <Badge tone={style.tone}>{style.label}</Badge>
+              <Badge tone={pay.tone}>{pay.label}</Badge>
               {live && next && (
-                <button onClick={() => advance(o)} disabled={busyId === o.id} className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold shrink-0" style={{ background: C.mint, color: C.primary, opacity: busyId === o.id ? 0.6 : 1 }}>
-                  {busyId === o.id ? "…" : `→ ${next.label}`}
+                <button onClick={() => advance(o)} disabled={busyId === o.id || gated} title={gated ? "Payment pending — can't be packed until the payment is confirmed" : undefined}
+                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold shrink-0" style={{ background: C.mint, color: C.primary, opacity: busyId === o.id || gated ? 0.5 : 1 }}>
+                  {busyId === o.id ? "…" : gated ? "Awaiting payment" : `→ ${next.label}`}
                 </button>
               )}
-              {canDispatch && o.status === "packed" && (
+              {canDispatch && o.status === "packed" && isPaymentCleared(o) && (
                 <button onClick={() => setAssigning(o)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold shrink-0" style={{ background: C.primary, color: "#fff" }}>Assign rider</button>
               )}
               {canDispatch && del && ["assigned", "accepted"].includes(del.status) && (

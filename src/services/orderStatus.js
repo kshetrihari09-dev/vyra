@@ -51,19 +51,56 @@ const FORWARD = {
   preparing: { to: "packed", label: "Mark ready for delivery" },
 };
 export const nextSellerStep = (status) => FORWARD[sellerStatusOf(status).key] || null;
-export const canCancel = (status) => ["pending", "confirmed", "preparing", "ready"].includes(sellerStatusOf(status).key);
+
+/** Money is a separate axis from fulfilment. A non-COD order is "prepaid"; it is only paid once the backend says so. */
+export const isPrepaid = (order) => !!order?.paymentMethod && order.paymentMethod !== "cod";
+export const isPaymentCleared = (order) => !isPrepaid(order) || order.paymentStatus === "paid";
+
+/** The next step a shop can take on this order, and whether the backend's payment gate currently blocks it. The backend
+ *  sends `order.actions` (see domain/orderRules.js) — that is preferred; the local rule is only a fallback for an order
+ *  object that doesn't carry it. The server re-checks everything either way. */
+export function nextSellerAction(order) {
+  const step = nextSellerStep(order.status);
+  if (!step) return null;
+  const blocked = order.actions ? !!order.actions.blocked && order.actions.next === step.to : step.to === "packed" && !isPaymentCleared(order);
+  return { ...step, blocked, reason: blocked ? "Payment pending — packing and dispatch unlock once the payment is confirmed." : null };
+}
+
+/* Cancelling is only possible before "packed" — exactly what the backend allows (TOO_LATE_TO_CANCEL from "packed" on).
+   Accepts an order (uses the server's own `actions.canCancel` when present) or a bare status string. */
+const CANCELLABLE = ["placed", "confirmed", "preparing"];
+export const canCancel = (orderOrStatus) => {
+  if (orderOrStatus && typeof orderOrStatus === "object") {
+    return typeof orderOrStatus.actions?.canCancel === "boolean" ? orderOrStatus.actions.canCancel : CANCELLABLE.includes(orderOrStatus.status);
+  }
+  return CANCELLABLE.includes(orderOrStatus);
+};
 export const canReturn = (status) => sellerStatusOf(status).key === "delivered";
 export const isOpenOrder = (status) => ["pending", "confirmed", "preparing", "ready"].includes(sellerStatusOf(status).key);
 export const isRevenueOrder = (status) => !["cancelled", "returned"].includes(status);
 
 /* ------------------------- derived payment / delivery ------------------------ */
+/** Payment display state — the backend's `paymentStatus` is the single source of truth ("pending" | "paid" | "refunded" |
+ *  "not_collected"). Choosing a prepaid method never shows "Paid"; a missing status is treated as pending, never as paid. */
 export function paymentStatusOf(order) {
-  const prepaid = order.paymentMethod && order.paymentMethod !== "cod";
-  if (order.status === "cancelled") return prepaid ? { label: "Refunded", tone: "neutral" } : { label: "Not collected", tone: "neutral" };
-  if (order.status === "returned") return { label: "Refunded", tone: "neutral" };
-  if (prepaid) return { label: "Paid", tone: "ok" };
-  return order.status === "delivered" ? { label: "Paid (cash)", tone: "ok" } : { label: "Cash due", tone: "warn" };
+  const prepaid = isPrepaid(order);
+  const state = order.paymentStatus || "pending";
+  const base = { prepaid, state, paid: state === "paid" };
+  if (state === "refunded") return { ...base, label: "Refunded", tone: "neutral", amountLabel: "Amount refunded" };
+  if (state === "not_collected") return { ...base, label: "Not collected", tone: "neutral", amountLabel: "Amount" };
+  if (state === "paid") {
+    // A cancelled order whose captured payment hasn't been refunded yet.
+    if (order.status === "cancelled") return { ...base, label: "Refund pending", tone: "warn", amountLabel: "Amount paid" };
+    return { ...base, label: prepaid ? "Paid" : "Paid (cash)", tone: "ok", amountLabel: "Amount paid" };
+  }
+  if (order.status === "cancelled") return { ...base, label: "Not collected", tone: "neutral", amountLabel: "Amount" };
+  return prepaid
+    ? { ...base, label: "Payment pending", tone: "warn", amountLabel: "Amount" }
+    : { ...base, label: "Cash due", tone: "warn", amountLabel: "Amount due" };
 }
+
+/** Labels the seller's payment filter offers (kept next to paymentStatusOf so they can't drift apart). */
+export const PAYMENT_FILTERS = ["Paid", "Payment pending", "Cash due", "Paid (cash)", "Refund pending", "Refunded", "Not collected"];
 
 export function deliveryStatusOf(order) {
   switch (sellerStatusOf(order.status).key) {

@@ -5,7 +5,7 @@ import { useS } from "../components/tokens.js";
 import { Btn, DataTable, EmptyBlock, KeyValue, Notice, PageHeader, Pagination, Panel, Pill, SearchField, Select, Tabs, Thumb, useTable } from "../components/kit.jsx";
 import OrderActions from "../components/OrderActions.jsx";
 import { Icon } from "../../components/shared/Icon.jsx";
-import { PAYMENT_LABELS, SELLER_STATUSES, sellerStatusOf } from "../../services/orderStatus.js";
+import { PAYMENT_FILTERS, PAYMENT_LABELS, SELLER_STATUSES, isPrepaid, sellerStatusOf } from "../../services/orderStatus.js";
 import { storeById } from "../../data/stores.js";
 import { districtName, municipalityName, provinceName } from "../../data/locations.js";
 import { dateLabel, dateTimeLabel, fmt } from "../../utils/format.js";
@@ -63,7 +63,7 @@ function OrderList({ nav, params }) {
         <div className="flex flex-col sm:flex-row gap-2 p-4">
           <SearchField className="flex-1" value={q} onChange={(v) => { setQ(v); table.setPage(1); }} placeholder="Search by order number, customer or phone" />
           <Select value={pay} onChange={(e) => { setPay(e.target.value); table.setPage(1); }} aria-label="Filter by payment status" className="sm:!w-44">
-            <option value="all">All payments</option><option>Paid</option><option>Cash due</option><option>Paid (cash)</option><option>Refunded</option>
+            <option value="all">All payments</option>{PAYMENT_FILTERS.map((l) => <option key={l}>{l}</option>)}
           </Select>
           <Select value={range} onChange={(e) => { setRange(e.target.value); table.setPage(1); }} aria-label="Filter by date" className="sm:!w-40">
             <option value="all">All time</option><option value="today">Today</option><option value="week">Last 7 days</option><option value="month">Last 30 days</option>
@@ -114,6 +114,7 @@ function OrderDetail({ nav, orderId }) {
     <div>
       <PageHeader back={back} title={<span className="inline-flex items-center gap-3 flex-wrap tnum">{order.number}<Pill tone={row.status.tone}>{row.status.label}</Pill></span>}
         description={`Placed ${dateTimeLabel(order.placedAt)}`} actions={<OrderActions row={row} size="md" />} />
+      {row.soleSeller && isPrepaid(order) && !row.payment.paid && order.status !== "cancelled" && <div className="mb-4"><Notice tone="warn">Payment pending. You can confirm and prepare this order, but packing and dispatch unlock once the payment is confirmed.</Notice></div>}
       {!row.soleSeller && <div className="mb-4"><Notice tone="info">This order also contains items from other sellers. You can see your items and their total; the order status is coordinated by Vyra, so it can't be changed here.</Notice></div>}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
@@ -143,7 +144,7 @@ function OrderDetail({ nav, orderId }) {
             {(order.instructions || order.notes) && <p className="text-xs mt-2" style={{ color: s.muted }}>Customer note: {order.instructions || order.notes}</p>}
           </Panel>
           <Panel title="Payment">
-            <KeyValue rows={[["Method", PAYMENT_LABELS[order.paymentMethod] || order.paymentMethod || "—"], ["Status", <Pill tone={row.payment.tone}>{row.payment.label}</Pill>], ["Your items", fmt(row.subtotal)], !row.soleSeller && ["Whole order", fmt(order.totals.total)]]} />
+            <KeyValue rows={[["Method", PAYMENT_LABELS[order.paymentMethod] || order.paymentMethod || "—"], ["Payment status", <Pill tone={row.payment.tone}>{row.payment.label}</Pill>], ["Order status", <Pill tone={row.status.tone}>{row.status.label}</Pill>], [`${row.payment.amountLabel}${row.soleSeller ? "" : " (your items)"}`, fmt(row.soleSeller ? order.totals.total : row.subtotal)]]} />
           </Panel>
         </div>
       </div>

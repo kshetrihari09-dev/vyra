@@ -14,7 +14,10 @@ export function sellerSlice(order, products, sellerId) {
     .filter((it) => it.product && sellerForProduct(it.product) === sellerId);
   if (!items.length) return null;
   const subtotal = round(items.reduce((s, it) => s + it.unitPrice * it.qty, 0));
-  return { order, items, subtotal };
+  // The server already cuts a shop's view down to its own lines and says whether that is the whole basket
+  // (`sellerView.soleSeller`); comparing line counts here would wrongly read every such order as "sole seller".
+  const soleSeller = order.sellerView ? !!order.sellerView.soleSeller : items.length === order.items.length;
+  return { order, items, subtotal, soleSeller };
 }
 
 export function ordersForSeller(orders, products, sellerId) {

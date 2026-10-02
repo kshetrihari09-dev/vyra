@@ -54,12 +54,12 @@ export function customerOf(order) {
 }
 
 export function buildOrderRows(orders, products, sellerId) {
-  return ordersForSeller(orders, products, sellerId).map(({ order, items, subtotal }) => ({
+  return ordersForSeller(orders, products, sellerId).map(({ order, items, subtotal, soleSeller }) => ({
     id: order.id, number: order.number, order, items, subtotal,
     units: items.reduce((s, i) => s + i.qty, 0),
     customer: customerOf(order), placedAt: order.placedAt,
     status: sellerStatusOf(order.status), payment: paymentStatusOf(order), delivery: deliveryStatusOf(order),
-    soleSeller: items.length === order.items.length,
+    soleSeller,
   })).sort((a, b) => new Date(b.placedAt) - new Date(a.placedAt));
 }
 

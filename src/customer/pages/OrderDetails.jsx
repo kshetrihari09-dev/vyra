@@ -7,6 +7,8 @@ import { AddressCard } from "../components/AddressCard.jsx";
 import { ProductArt } from "../../components/shared/ProductArt.jsx";
 import { Icon, Phone, FileText, Headphones, Copy, ShieldCheck, Bike, X } from "../../components/shared/Icon.jsx";
 import { deliveryApi } from "../../services/api/deliveryApi.js";
+import { paymentsApi } from "../../services/api/paymentsApi.js";
+import { canCancel as orderCanCancel, isPrepaid, paymentStatusOf } from "../../services/orderStatus.js";
 import { productById } from "../../data/products.js";
 import { storeById, PAYMENT_METHODS } from "../../data/stores.js";
 import { fmt, dateTimeLabel, timeLabel } from "../../utils/format.js";
@@ -19,6 +21,8 @@ export default function OrderDetails({ nav, params }) {
   const C = useC();
   const order = orders.find((o) => o.id === params.orderId);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [payInfo, setPayInfo] = useState(null);
 
   /* Live tracking (Phase 7): the rider's last shared position, only while the order is out for delivery. Polled —
      the server deletes the location trail when the run ends. */
@@ -43,14 +47,28 @@ export default function OrderDetails({ nav, params }) {
   const store = storeById(order.storeId);
   const payment = PAYMENT_METHODS.find((p) => p.id === order.paymentMethod);
   const style = STATUS_STYLE[order.status];
-  const canCancel = stageIndex(order.status) < stageIndex("packed") && !["cancelled", "returned"].includes(order.status);
+  // Mirrors the backend: cancelling is only possible before "packed" (the server also sends `actions.canCancel`).
+  const canCancel = orderCanCancel(order);
+  const pay = paymentStatusOf(order);
+  const canRetryPayment = isPrepaid(order) && order.paymentStatus === "pending" && !["cancelled", "returned", "delivered"].includes(order.status);
+  const retryPayment = async () => {
+    setRetrying(true);
+    try {
+      const res = await paymentsApi.retry(order.id);
+      setPayInfo(res.payment);
+      toast(res.created ? "New payment started for this order" : "Your payment is still waiting — use the reference below");
+    } catch (err) {
+      toast(err.message || "Couldn't restart the payment", "danger");
+      commerce.refreshOrder(order.id).catch(() => {});
+    } finally { setRetrying(false); }
+  };
   const live = !["delivered", "cancelled", "returned"].includes(order.status);
   const loc = tracking?.delivery?.location;
 
   return (
     <Page>
       <PageHeader title={order.number} subtitle={dateTimeLabel(order.placedAt)} onBack={() => nav("orders")}
-        right={<Badge tone={style.tone}>{style.label}</Badge>} />
+        right={<span className="flex items-center gap-1.5"><Badge tone={style.tone}>{style.label}</Badge><Badge tone={pay.tone}>{pay.label}</Badge></span>} />
 
       <div className="px-4 md:px-0 md:grid md:grid-cols-[1fr_340px] md:gap-6 md:items-start space-y-4 md:space-y-0">
         <div className="space-y-4">
@@ -142,8 +160,15 @@ export default function OrderDetails({ nav, params }) {
             <Row label="Delivery" value={order.totals.deliveryFee === 0 ? "Free" : fmt(order.totals.deliveryFee)} />
             {order.totals.tax > 0 && <Row label="Tax" value={fmt(order.totals.tax)} />}
             <Divider className="my-2.5" />
-            <Row label="Total paid" value={fmt(order.totals.total)} bold />
-            <p className="text-xs mt-2" style={{ color: C.muted }}>Paid with {payment?.label || order.paymentMethod}</p>
+            <Row label={pay.paid ? "Total paid" : pay.prepaid ? "Total" : "Total due"} value={fmt(order.totals.total)} bold />
+            <Row label="Payment" value={pay.label} tone={pay.tone === "ok" ? TONE.ok : pay.tone === "warn" ? TONE.warn : undefined} />
+            <p className="text-xs mt-1" style={{ color: C.muted }}>{pay.prepaid ? `Method: ${payment?.label || order.paymentMethod}` : "Pay the rider in cash on delivery"}</p>
+            {canRetryPayment && (
+              <div className="mt-3">
+                <PillButton full size="sm" onClick={retryPayment} disabled={retrying}>{retrying ? "Working…" : "Retry payment"}</PillButton>
+                {payInfo?.instructions?.note && <p className="text-xs mt-2" style={{ color: C.muted }}>{payInfo.instructions.note}</p>}
+              </div>
+            )}
           </div>
 
           {address && <AddressCard address={address} />}
@@ -159,11 +184,14 @@ export default function OrderDetails({ nav, params }) {
       </div>
 
       <ConfirmDialog open={confirmCancel} onClose={() => setConfirmCancel(false)} title="Cancel this order?"
-        message="The order will be cancelled and any payment refunded within 3–5 working days. This can't be undone."
+        message={pay.paid ? "The order will be cancelled and your payment refunded within 3–5 working days. This can't be undone." : "The order will be cancelled. This can't be undone."}
         confirmLabel="Cancel order"
         onConfirm={async () => {
           try { await commerce.cancelOrder(order.id); toast("Order cancelled"); }
-          catch (err) { toast(err.message || "Couldn't cancel the order", "danger"); }
+          catch (err) {
+            toast(err.message || "Couldn't cancel the order", "danger");
+            commerce.refreshOrder(order.id).catch(() => {}); // the order may have moved on (e.g. just packed) — re-sync so the button disappears
+          }
           finally { setConfirmCancel(false); }
         }} />
 
