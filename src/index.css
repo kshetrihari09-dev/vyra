@@ -19,3 +19,8 @@ input[type=range] { height: 4px; border-radius: 999px; background: #E5F0EE; }
 .seller-root .s-heading { font-family: 'Poppins', 'Inter', system-ui, sans-serif; }
 .seller-root table { border-collapse: separate; border-spacing: 0; }
 @media (prefers-reduced-motion: reduce) { .seller-root * { transition: none !important; animation: none !important; } }
+
+/* Landing hero: the product tiles settle in once on load — the page's single piece of ambient motion. */
+@keyframes vyra-settle { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: none; } }
+.vyra-settle { animation: vyra-settle .6s cubic-bezier(.2, .7, .2, 1) both; animation-delay: var(--d, 0ms); }
+@media (prefers-reduced-motion: reduce) { .vyra-settle { animation: none; } }
