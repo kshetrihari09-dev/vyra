@@ -135,11 +135,11 @@ export function ProductBrowser({ categoryId = null, q = "", brandId = null, empt
         <EmptyState icon={SearchIcon} title={emptyTitle} message="Try removing a filter or searching for something broader." action={activeCount ? "Clear filters" : null} onAction={reset} />
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 px-4 md:px-0">
+          <div className="vgrid px-4 md:px-0">
             {result.items.map((p) => <ProductCard key={p.id} product={p} onOpen={onOpen} />)}
           </div>
           {(hasMore || result.loading) && (
-            <div ref={sentinel} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 px-4 md:px-0 mt-3">
+            <div ref={sentinel} className="vgrid px-4 md:px-0 mt-3">
               {Array.from({ length: result.items.length ? Math.min(PAGE, Math.max(result.total - result.items.length, 1)) : PAGE }).map((_, i) => <ProductCardSkeleton key={i} />)}
             </div>
           )}
