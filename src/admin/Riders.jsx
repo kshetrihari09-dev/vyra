@@ -5,14 +5,37 @@ import { Icon } from "../components/shared/Icon.jsx";
 import { deliveryApi, VEHICLE_TYPES, composeVehicle } from "../services/api/deliveryApi.js";
 import { hasPermission } from "../services/access.js";
 import { capacityLine, stateMeta, vehicleLine } from "../delivery/riderState.js";
+import RiderApplications from "./RiderApplications.jsx";
 
 /* Rider management. A rider is an EXISTING user account + the `delivery` role + a profile (phone, vehicle). This page never
    creates accounts and never stores credentials: "Add rider" picks a user that already exists. Everything shown here comes
    from the server, including each rider's state and capacity. */
 export default function AdminRiders() {
   const C = useC();
-  const { session, toast } = useApp();
+  const { session } = useApp();
   const canCreate = hasPermission(session, "roles:assign"); // the API also needs it; this only hides a button that would 403
+  const [tab, setTab] = useState("riders");
+  const [refreshKey, setRefreshKey] = useState(0); // an approval adds a rider: remount the list so it reloads
+  return (
+    <div>
+      {canCreate && (
+        <div className="flex gap-2 mb-4">
+          {[["riders", "Riders"], ["applications", "Applications"]].map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id)} className="px-3.5 py-2 rounded-full text-xs font-bold"
+              style={{ background: tab === id ? C.primary : C.white, color: tab === id ? "#fff" : C.navy, border: `1px solid ${tab === id ? C.primary : C.border}` }}>{label}</button>
+          ))}
+        </div>
+      )}
+      {tab === "applications" && canCreate
+        ? <RiderApplications onApproved={() => setRefreshKey((k) => k + 1)} />
+        : <RiderList key={refreshKey} canCreate={canCreate} />}
+    </div>
+  );
+}
+
+function RiderList({ canCreate }) {
+  const C = useC();
+  const { toast } = useApp();
   const [riders, setRiders] = useState(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);

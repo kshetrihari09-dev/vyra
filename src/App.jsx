@@ -17,6 +17,7 @@ import OrderDetails from "./customer/pages/OrderDetails.jsx";
 import Wishlist from "./customer/pages/Wishlist.jsx";
 import Profile from "./customer/pages/Profile.jsx";
 import Addresses from "./customer/pages/Addresses.jsx";
+import BecomeRider from "./customer/pages/BecomeRider.jsx";
 import PaymentMethods from "./customer/pages/PaymentMethods.jsx";
 import Notifications from "./customer/pages/Notifications.jsx";
 import Prescription from "./customer/pages/Prescription.jsx";
@@ -92,6 +93,7 @@ function Shell() {
       case "wishlist": return <Wishlist nav={nav} />;
       case "profile": return <Profile nav={nav} />;
       case "addresses": return <Addresses nav={nav} />;
+      case "becomeRider": return <BecomeRider nav={nav} />;
       case "payment": return <PaymentMethods nav={nav} />;
       case "notifications": return <Notifications nav={nav} />;
       case "prescription": return <Prescription nav={nav} params={params} />;

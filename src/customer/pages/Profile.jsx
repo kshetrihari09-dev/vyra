@@ -125,6 +125,7 @@ export default function Profile({ nav }) {
             page, or straight into the shop dashboard depending on where the
             owner's application currently stands. */}
         <MyShop nav={nav} />
+        {!canUseRiderApp(session) && <BecomeRiderCard nav={nav} />}
 
         <PillButton variant="danger" full onClick={() => setSignOut(true)}><LogOut size={15} /> Sign out</PillButton>
       </div>
@@ -155,6 +156,23 @@ export default function Profile({ nav }) {
         message="Your cart and wishlist are kept for when you come back."
         confirmLabel="Sign out" onConfirm={async () => { await auth.logout(); nav("welcome"); }} />
     </Page>
+  );
+}
+
+/** Apply to deliver. Hidden once the account can already use the rider app. */
+function BecomeRiderCard({ nav }) {
+  const C = useC();
+  return (
+    <button onClick={() => nav("becomeRider")} className="w-full rounded-2xl p-4 flex items-center gap-3" style={{ background: C.white, border: `1px solid ${C.border}` }}>
+      <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: C.mint }}>
+        <Icon name="Bike" size={17} style={{ color: C.primary }} />
+      </span>
+      <span className="flex-1 text-left">
+        <span className="block font-bold text-sm" style={{ color: C.navy }}>Become a Delivery Rider</span>
+        <span className="block text-xs" style={{ color: C.muted }}>Earn by delivering Vyra orders</span>
+      </span>
+      <ChevronRight size={17} style={{ color: C.muted }} />
+    </button>
   );
 }
 

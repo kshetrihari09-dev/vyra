@@ -25,6 +25,7 @@ export const ROUTES = [
   R("wishlist", "/customer/wishlist", "customer"),
   R("profile", "/customer/profile", "customer"),
   R("addresses", "/customer/addresses", "customer"),
+  R("becomeRider", "/customer/become-rider", "customer"),
   R("payment", "/customer/payment-methods", "customer"),
   R("notifications", "/customer/notifications", "customer"),
   R("prescription", "/customer/prescriptions", "customer"),
