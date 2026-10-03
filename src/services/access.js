@@ -30,6 +30,10 @@ export const hasPermission = (session, perm) => !!session?.signedIn && (session.
 /** The rider/delivery app is for people holding `delivery:rider` — NOT merely any staff member. */
 export const canUseRiderApp = (session) => hasPermission(session, "delivery:rider");
 
+/** Already a rider = holds the `delivery` role. Not the same as having the permission: an administrator holds every permission
+    but is not a rider, and should still be offered "Become a rider". */
+export const isRider = (session) => !!session?.signedIn && (session.roles || []).includes("delivery");
+
 /** Dispatch & rider management (the admin console's Riders section and the assign sheet). */
 export const canManageDelivery = (session) => hasPermission(session, "delivery:manage");
 

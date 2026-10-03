@@ -5,7 +5,7 @@ import { PageHeader, PillButton, Badge, Divider, Sheet, ConfirmDialog } from "..
 import { Icon, ChevronRight, Palette, Check, ShieldCheck, LogOut } from "../../components/shared/Icon.jsx";
 import { THEMES, THEME_ORDER } from "../../theme.js";
 import { ROLES } from "../../data/stores.js";
-import { canUseRiderApp, isAdmin } from "../../services/access.js";
+import { canUseRiderApp, isAdmin, isRider } from "../../services/access.js";
 
 const MENU = [
   { id: "orders", label: "Your Orders", sub: "Track, reorder and invoices", icon: "Package" },
@@ -125,7 +125,7 @@ export default function Profile({ nav }) {
             page, or straight into the shop dashboard depending on where the
             owner's application currently stands. */}
         <MyShop nav={nav} />
-        {!canUseRiderApp(session) && <BecomeRiderCard nav={nav} />}
+        {session.signedIn && !isRider(session) && <BecomeRiderCard nav={nav} />}
 
         <PillButton variant="danger" full onClick={() => setSignOut(true)}><LogOut size={15} /> Sign out</PillButton>
       </div>
@@ -159,7 +159,7 @@ export default function Profile({ nav }) {
   );
 }
 
-/** Apply to deliver. Hidden once the account can already use the rider app. */
+/** Apply to deliver. Hidden only for accounts that are already riders (an admin has the permission but is not a rider). */
 function BecomeRiderCard({ nav }) {
   const C = useC();
   return (

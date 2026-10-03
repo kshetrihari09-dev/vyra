@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { canManageDelivery, canUseRiderApp, isAdmin } from "./access.js";
+import { canManageDelivery, canUseRiderApp, isAdmin, isRider } from "./access.js";
 
 describe("isAdmin (admin console gate)", () => {
   it("allows only a signed-in account holding the admin role", () => {
@@ -31,5 +31,19 @@ describe("rider app visibility (canUseRiderApp)", () => {
   it("dispatch/rider management needs delivery:manage, separately", () => {
     assert.equal(canManageDelivery({ signedIn: true, permissions: ["delivery:manage"] }), true);
     assert.equal(canManageDelivery({ signedIn: true, permissions: ["delivery:rider"] }), false);
+  });
+});
+
+describe("isRider (hides 'Become a rider' only for actual riders)", () => {
+  it("an administrator holds delivery:rider but is not a rider, so can still apply", () => {
+    const admin = { signedIn: true, roles: ["admin"], permissions: ["delivery:rider", "delivery:manage"] };
+    assert.equal(canUseRiderApp(admin), true);
+    assert.equal(isRider(admin), false);
+  });
+  it("true for the delivery role; false for customers and guests", () => {
+    assert.equal(isRider({ signedIn: true, roles: ["customer", "delivery"] }), true);
+    assert.equal(isRider({ signedIn: true, roles: ["customer"] }), false);
+    assert.equal(isRider({ signedIn: false, roles: ["delivery"] }), false);
+    assert.equal(isRider(null), false);
   });
 });
