@@ -20,6 +20,8 @@ export const deliveryApi = {
   riders: async () => (await api.get("/delivery/riders")).riders,
   createRider: async (body) => (await api.post("/delivery/riders", body)).rider,
   updateRider: async (id, body) => (await api.put(`/delivery/riders/${id}`, body)).rider,
+  /** Existing ACTIVE accounts, for the Add Rider picker. Riders are ordinary users + the delivery role — never a second account. */
+  findUsers: async (q) => (await api.get("/admin/users", { q: q || undefined, status: "active", pageSize: 8 })).items,
   active: async () => (await api.get("/delivery/active")).deliveries,
   assign: async (orderId, riderId) => (await api.post(`/delivery/orders/${orderId}/assign`, { riderId })).delivery,
   reassign: async (deliveryId, riderId) => (await api.post(`/delivery/deliveries/${deliveryId}/reassign`, { riderId })).delivery,
@@ -29,6 +31,11 @@ export const deliveryApi = {
   // ---- customer / staff
   tracking: async (orderId) => (await api.get(`/orders/${orderId}/tracking`)).tracking,
 };
+
+export const VEHICLE_TYPES = ["Bike", "Scooter", "Motorbike", "Bicycle", "Car", "Van"];
+
+/** The `vehicle` column is one text field, written "Type · Number". */
+export const composeVehicle = (type, number) => [type?.trim(), number?.trim()].filter(Boolean).join(" · ");
 
 export const FAILURE_REASONS = [
   { id: "customer_unreachable", label: "Customer unreachable" },

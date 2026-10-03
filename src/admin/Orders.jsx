@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useApp, useC } from "../store/AppContext.jsx";
 import { Badge, PillButton, Sheet } from "../components/shared/ui.jsx";
 import { deliveryApi } from "../services/api/deliveryApi.js";
+import { canOfferAssignment, capacityLine, isStranded, stateMeta, unavailableReason, vehicleLine } from "../delivery/riderState.js";
 import { ORDER_STAGES, STATUS_STYLE, stageIndex } from "../customer/components/OrderTimeline.jsx";
 import { ChevronRight } from "../components/shared/Icon.jsx";
 import { storeById } from "../data/stores.js";
 import { fmt, dateTimeLabel } from "../utils/format.js";
+import { TONE } from "../theme.js";
 import { isPaymentCleared, paymentStatusOf } from "../services/orderStatus.js";
 
 const FILTERS = [
@@ -31,15 +33,21 @@ export default function AdminOrders({ nav }) {
   const [riders, setRiders] = useState([]);
   const [active, setActive] = useState([]);     // live deliveries, to know who holds which order
   const [assigning, setAssigning] = useState(null);
-  const refreshDispatch = () => Promise.all([deliveryApi.riders(), deliveryApi.active()]).then(([r, a]) => { setRiders(r); setActive(a); }).catch(() => {});
+  const [dispatchError, setDispatchError] = useState("");
+  const refreshDispatch = () => Promise.all([deliveryApi.riders(), deliveryApi.active()])
+    .then(([r, a]) => { setRiders(r); setActive(a); setDispatchError(""); })
+    .catch((err) => setDispatchError(err.message || "Couldn't load riders")); // visible, so a failed load isn't mistaken for "no riders"
   useEffect(() => { if (canDispatch) refreshDispatch(); }, [canDispatch]); // eslint-disable-line react-hooks/exhaustive-deps
   const deliveryOf = (o) => active.find((d) => d.orderId === o.id);
 
+  const dispatching = useRef(false);
   const dispatchAction = async (fn, message, orderId) => {
+    if (dispatching.current) return; // a double-tap must not send two assignments
+    dispatching.current = true;
     setBusyId(orderId);
     try { await fn(); toast(message); await Promise.all([commerce.refreshOrder(orderId), refreshDispatch()]); setAssigning(null); }
     catch (err) { toast(err.message || "Couldn't update the delivery", "danger"); refreshDispatch(); }
-    finally { setBusyId(null); }
+    finally { dispatching.current = false; setBusyId(null); }
   };
 
   const advance = async (o) => {
@@ -99,7 +107,9 @@ export default function AdminOrders({ nav }) {
               {canDispatch && del && ["assigned", "accepted"].includes(del.status) && (
                 <button onClick={() => setAssigning(o)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold shrink-0" style={{ background: C.mint, color: C.primary }}>{del.riderName} · change</button>
               )}
-              {canDispatch && del?.status === "picked_up" && <span className="text-[11px] font-bold shrink-0" style={{ color: C.muted }}>{del.riderName} · on the road</span>}
+              {canDispatch && del?.status === "picked_up" && (isStranded(del, riders)
+                ? <button onClick={() => setAssigning(o)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold shrink-0" style={{ background: TONE.dangerBg, color: TONE.danger }}>{del.riderName} · no longer authorized — recover</button>
+                : <span className="text-[11px] font-bold shrink-0" style={{ color: C.muted }}>{del.riderName} · on the road</span>)}
               <ChevronRight size={16} style={{ color: C.muted }} className="shrink-0 hidden md:block" />
             </div>
           );
@@ -110,20 +120,31 @@ export default function AdminOrders({ nav }) {
       <Sheet open={!!assigning} onClose={() => setAssigning(null)} title={assigning ? `Rider for ${assigning.number}` : ""}>
         {assigning && (() => {
           const del = deliveryOf(assigning);
-          const usable = riders.filter((r) => r.status === "active" && r.id !== del?.riderId);
+          const candidates = riders.filter((r) => r.id !== del?.riderId);
+          const stranded = isStranded(del, riders);
           return (
             <div className="space-y-2">
-              {usable.length === 0 && <p className="text-sm" style={{ color: C.muted }}>No active riders. Add one from Users (they need the Delivery role and a rider profile).</p>}
-              {usable.map((r) => (
-                <button key={r.id} disabled={busyId === assigning.id}
-                  onClick={() => dispatchAction(() => (del ? deliveryApi.reassign(del.id, r.id) : deliveryApi.assign(assigning.id, r.id)), `${assigning.number} → ${r.name}`, assigning.id)}
-                  className="w-full flex items-center gap-3 rounded-xl px-4 py-3 text-left" style={{ background: C.white, border: `1px solid ${C.border}` }}>
-                  <span className="flex-1"><span className="block text-sm font-bold" style={{ color: C.navy }}>{r.name}</span>
-                    <span className="block text-[11px]" style={{ color: C.muted }}>{r.vehicle} · {r.activeCount} active{r.isAvailable ? "" : " · off duty"}</span></span>
-                </button>
-              ))}
-              {del && ["assigned", "accepted"].includes(del.status) && (
-                <PillButton full variant="subtle" onClick={() => dispatchAction(() => deliveryApi.unassign(del.id), `${assigning.number} back in the queue`, assigning.id)}>Take off {del.riderName} (back to packed)</PillButton>
+              {stranded && <p className="text-xs rounded-xl p-3" style={{ background: TONE.dangerBg, color: TONE.danger }}>{del.riderName} can no longer operate this delivery. Recover the parcel to put the order back in the queue.</p>}
+              {dispatchError && <p className="text-xs rounded-xl p-3" role="alert" style={{ background: TONE.dangerBg, color: TONE.danger }}>{dispatchError} — rider capacity shown below may be out of date.</p>}
+              {candidates.length === 0 && !dispatchError && <p className="text-sm" style={{ color: C.muted }}>No riders yet. Add one from Riders (they must be an existing active user).</p>}
+              {!stranded && candidates.map((r) => {
+                const meta = stateMeta(r); const offer = canOfferAssignment(r);
+                return (
+                  <button key={r.id} disabled={!offer || busyId === assigning.id} title={offer ? undefined : unavailableReason(r)}
+                    onClick={() => dispatchAction(() => (del ? deliveryApi.reassign(del.id, r.id) : deliveryApi.assign(assigning.id, r.id)), `${assigning.number} → ${r.name}`, assigning.id)}
+                    className="w-full flex items-center gap-3 rounded-xl px-4 py-3 text-left" style={{ background: C.white, border: `1px solid ${C.border}`, opacity: offer ? 1 : 0.55 }}>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-sm font-bold truncate" style={{ color: C.navy }}>{r.name}</span>
+                      <span className="block text-[11px]" style={{ color: C.muted }}>{vehicleLine(r)}</span>
+                      <span className="block text-[11px]" style={{ color: C.muted }}>{capacityLine(r)}</span>
+                      {!offer && <span className="block text-[11px]" style={{ color: C.muted }}>{unavailableReason(r)}</span>}
+                    </span>
+                    <Badge tone={meta.tone}>{meta.label}</Badge>
+                  </button>
+                );
+              })}
+              {del && (["assigned", "accepted"].includes(del.status) || stranded) && (
+                <PillButton full variant={stranded ? "primary" : "subtle"} disabled={busyId === assigning.id} onClick={() => dispatchAction(() => deliveryApi.unassign(del.id), `${assigning.number} back in the queue`, assigning.id)}>{stranded ? "Recover parcel (back to packed)" : `Take off ${del.riderName} (back to packed)`}</PillButton>
               )}
               {del?.order?.otpRequired && (
                 <PillButton full variant="subtle" onClick={() => dispatchAction(() => deliveryApi.resetOtp(assigning.id), "Handover code reset — the customer sees a new one", assigning.id)}>Reset handover code (after a lockout)</PillButton>

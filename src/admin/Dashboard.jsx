@@ -13,6 +13,8 @@ import AdminSellers from "./Sellers.jsx";
 import AdminPurchases from "./Purchases.jsx";
 import AdminShopApplications from "./ShopApplications.jsx";
 import AuditLogPage from "./AuditLog.jsx";
+import AdminRiders from "./Riders.jsx";
+import { canManageDelivery } from "../services/access.js";
 import { storeById, STORES, ROLES } from "../data/stores.js";
 import { expiringSoon } from "../utils/inventory.js";
 import { fmt, timeAgo } from "../utils/format.js";
@@ -28,6 +30,7 @@ const SECTIONS = [
   { id: "purchases", label: "Purchases", icon: "Truck" },
   { id: "inventory", label: "Inventory", icon: "ClipboardList" },
   { id: "customers", label: "Customers", icon: "Users" },
+  { id: "riders", label: "Riders", icon: "Bike", needs: canManageDelivery },
   { id: "reports", label: "Reports", icon: "TrendingUp" },
   { id: "auditLog", label: "Audit Log", icon: "History" },
 ];
@@ -36,6 +39,7 @@ const SECTIONS = [
     uses, so a change here is visible to customers immediately. */
 export default function Admin({ nav, params }) {
   const C = useC();
+  const { session } = useApp();
   const [section, setSection] = useState(params.section || "overview");
 
   return (
@@ -43,7 +47,7 @@ export default function Admin({ nav, params }) {
       <PageHeader title="Admin Console" subtitle="Catalogue, inventory, orders and reports" onBack={() => nav("profile")} />
       <div className="px-4 md:px-0">
         <div className="flex gap-2 overflow-x-auto no-scrollbar mb-5">
-          {SECTIONS.map((s) => (
+          {SECTIONS.filter((s) => !s.needs || s.needs(session)).map((s) => (
             <button key={s.id} onClick={() => setSection(s.id)}
               className="shrink-0 px-3.5 py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5"
               style={{ background: section === s.id ? C.navy : C.white, color: section === s.id ? "#fff" : C.navy, border: `1px solid ${section === s.id ? C.navy : C.border}` }}>
@@ -61,6 +65,7 @@ export default function Admin({ nav, params }) {
         {section === "purchases" && <AdminPurchases />}
         {section === "inventory" && <AdminInventory />}
         {section === "customers" && <AdminCustomers />}
+        {section === "riders" && canManageDelivery(session) && <AdminRiders />}
         {section === "reports" && <AdminReports />}
         {section === "auditLog" && <AuditLogPage />}
       </div>

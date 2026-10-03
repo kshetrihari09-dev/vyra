@@ -24,6 +24,15 @@ export function ownedSellerId(session, shopApplications) {
     UI gate only — the API re-checks permissions from the database on every request. */
 export const isAdmin = (session) => !!session?.signedIn && (session.roles || []).includes("admin");
 
+/** Permission checks read the session's permission list (loaded from the API). UI gates only — the API re-checks everything. */
+export const hasPermission = (session, perm) => !!session?.signedIn && (session.permissions || []).includes(perm);
+
+/** The rider/delivery app is for people holding `delivery:rider` — NOT merely any staff member. */
+export const canUseRiderApp = (session) => hasPermission(session, "delivery:rider");
+
+/** Dispatch & rider management (the admin console's Riders section and the assign sheet). */
+export const canManageDelivery = (session) => hasPermission(session, "delivery:manage");
+
 export function roleOf(session, shopApplications) {
   if (ownedSellerId(session, shopApplications)) return "shop_owner";
   if (session?.isStaff) return "staff";

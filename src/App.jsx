@@ -27,7 +27,8 @@ import Auth from "./customer/pages/Auth.jsx";
 /* Everything that isn't the customer storefront is fetched only when opened. */
 const Admin = lazy(() => import("./admin/Dashboard.jsx"));
 import AdminGate from "./admin/AdminGate.jsx";
-import { isAdmin } from "./services/access.js";
+import RiderRestricted from "./delivery/RiderRestricted.jsx";
+import { canUseRiderApp, isAdmin } from "./services/access.js";
 const Pharmacy = lazy(() => import("./pharmacy/Prescriptions.jsx"));
 const Delivery = lazy(() => import("./delivery/DeliveryOrders.jsx"));
 const POS = lazy(() => import("./pos/POS.jsx"));
@@ -98,7 +99,7 @@ function Shell() {
       case "offers": return <Offers nav={nav} />;
       case "admin": return isAdmin(session) ? <Lazy><Admin nav={nav} params={params} /></Lazy> : <AdminGate signedIn={session.signedIn} nav={nav} />;
       case "pharmacy": return <Lazy><Pharmacy nav={nav} /></Lazy>;
-      case "delivery": return <Lazy><Delivery nav={nav} /></Lazy>;
+      case "delivery": return canUseRiderApp(session) ? <Lazy><Delivery nav={nav} /></Lazy> : <RiderRestricted nav={nav} />;
       default: return <Home nav={nav} />;
     }
   };

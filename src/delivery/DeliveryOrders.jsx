@@ -4,6 +4,7 @@ import { Page } from "../customer/layout/CustomerLayout.jsx";
 import { PageHeader, PillButton, Badge, EmptyState, InlineNotice, Sheet } from "../components/shared/ui.jsx";
 import { Bike, MapPin, Phone, ShieldCheck, Package, Navigation, Banknote, Check } from "../components/shared/Icon.jsx";
 import { deliveryApi, FAILURE_REASONS } from "../services/api/deliveryApi.js";
+import { capacityLine, vehicleLine } from "./riderState.js";
 import { storeById } from "../data/stores.js";
 import { fmt, timeLabel } from "../utils/format.js";
 import { TONE } from "../theme.js";
@@ -17,6 +18,9 @@ const STATUS = {
   cancelled: { label: "Cancelled", tone: "neutral" },
 };
 const LOCATION_EVERY_MS = 10_000;
+/** Codes meaning "this account can't use the rider app" (as opposed to a transient failure). */
+const ACCESS_CODES = ["NOT_A_RIDER", "RIDER_SUSPENDED", "RIDER_NOT_AUTHORIZED", "FORBIDDEN", "UNAUTHENTICATED"];
+const LOCATION_MESSAGE = "Location sharing is unavailable. Please enable location permission to provide live delivery tracking.";
 
 /** The rider app. Everything here talks to /api/rider/* — the server decides what a rider may do and only ever
     returns their own deliveries. The customer's handover code is never sent to this screen. */
@@ -33,45 +37,66 @@ export default function DeliveryOrders({ nav }) {
   const [busy, setBusy] = useState(null);
   const [handover, setHandover] = useState(null);    // delivery being completed
   const [failing, setFailing] = useState(null);      // delivery being reported undeliverable
+  const [loadError, setLoadError] = useState("");    // a refresh failed: keep showing the last data, say so
+  const [historyState, setHistoryState] = useState({ loading: false, error: "" });
+  const [locationIssue, setLocationIssue] = useState(false);
+  const loadSeq = useRef(0);
+  const acting = useRef(false);
 
-  const load = useCallback(async () => {
+  /* `quiet` is for the background poll: a blip shouldn't pop a toast every 30 s, but it must not be hidden either. */
+  const load = useCallback(async ({ quiet = false } = {}) => {
+    const seq = ++loadSeq.current; // a slow older response must never overwrite a newer one (stale runs / stale buttons)
     try {
       const [r, m, a] = await Promise.all([deliveryApi.me(), deliveryApi.mine("active"), deliveryApi.available()]);
-      setRider(r); setMine(m); setAvailable(a); setProblem(null);
+      if (seq !== loadSeq.current) return;
+      setRider(r); setMine(m); setAvailable(a); setProblem(null); setLoadError("");
     } catch (err) {
-      if (["NOT_A_RIDER", "RIDER_SUSPENDED", "FORBIDDEN", "UNAUTHENTICATED"].includes(err.code)) setProblem({ code: err.code, message: err.message });
-      else toast(err.message || "Couldn't load deliveries", "danger");
+      if (seq !== loadSeq.current) return;
+      if (ACCESS_CODES.includes(err.code)) { setProblem({ code: err.code, message: err.message }); setMine([]); setAvailable([]); }
+      else { setLoadError(err.message || "Couldn't refresh deliveries"); if (!quiet) toast(err.message || "Couldn't load deliveries", "danger"); }
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }, [toast]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { if (tab === "history") deliveryApi.mine("history").then(setHistory).catch(() => {}); }, [tab]);
-  // Pick up new assignments made by dispatch while the app is open.
-  useEffect(() => { const t = setInterval(load, 30_000); return () => clearInterval(t); }, [load]);
+  const loadHistory = useCallback(() => {
+    setHistoryState({ loading: true, error: "" });
+    deliveryApi.mine("history").then((h) => { setHistory(h); setHistoryState({ loading: false, error: "" }); })
+      .catch((err) => setHistoryState({ loading: false, error: err.message || "Couldn't load history" }));
+  }, []);
+  useEffect(() => { if (tab === "history") loadHistory(); }, [tab, loadHistory]);
+  // Pick up new assignments made by dispatch while the app is open (not while the tab is hidden).
+  useEffect(() => {
+    const t = setInterval(() => { if (!document.hidden) load({ quiet: true }); }, 30_000);
+    return () => clearInterval(t);
+  }, [load]);
 
   /* Share position only while at least one delivery is out. Pings are throttled here and again on the server;
      when the last run ends the server deletes the trail. */
   const outIds = mine.filter((d) => d.status === "picked_up").map((d) => d.id).join(",");
   const lastSent = useRef(0);
   useEffect(() => {
-    if (!outIds || !navigator.geolocation) return undefined;
+    if (!outIds) { setLocationIssue(false); return undefined; } // nothing out ⇒ no tracking, no message
+    if (!navigator.geolocation) { setLocationIssue(true); return undefined; }
     const ids = outIds.split(",");
     const watch = navigator.geolocation.watchPosition((pos) => {
+      setLocationIssue(false);
       if (Date.now() - lastSent.current < LOCATION_EVERY_MS) return;
       lastSent.current = Date.now();
       const point = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
-      ids.forEach((id) => deliveryApi.sendLocation(id, point).catch(() => {}));
-    }, () => {}, { enableHighAccuracy: true, maximumAge: 5000 });
+      // A ping is best-effort: it must never block the delivery. If the server says this account/run is no longer valid, re-check state.
+      ids.forEach((id) => deliveryApi.sendLocation(id, point).catch((err) => { if (ACCESS_CODES.includes(err.code) || err.code === "NOT_TRACKING") load({ quiet: true }); }));
+    }, () => setLocationIssue(true), { enableHighAccuracy: true, maximumAge: 5000 }); // permission denied / unavailable / timeout: tell the rider, don't swallow it
     return () => navigator.geolocation.clearWatch(watch);
-  }, [outIds]);
+  }, [outIds, load]);
 
   const act = async (key, fn, message) => {
-    setBusy(key);
+    if (acting.current) return; // one action at a time: a fast double-tap must not send the request twice
+    acting.current = true; setBusy(key);
     try { await fn(); if (message) toast(message); await load(); }
-    catch (err) { toast(err.message || "That didn't work", "danger"); await load(); }
-    finally { setBusy(null); }
+    catch (err) { toast(err.message || "That didn't work", "danger"); await load(); } // reload so buttons reflect what really happened (e.g. someone else got the order)
+    finally { acting.current = false; setBusy(null); }
   };
 
   const toggleAvailability = () => act("avail", async () => setRider(await deliveryApi.setAvailability(!rider.isAvailable)));
@@ -82,20 +107,25 @@ export default function DeliveryOrders({ nav }) {
       <Page>
         <PageHeader title="Delivery App" onBack={() => nav("profile")} />
         <div className="px-4 md:px-0">
-          <EmptyState icon={Bike} title={problem.code === "RIDER_SUSPENDED" ? "Rider account suspended" : "Not set up as a rider"}
-            message={problem.code === "NOT_A_RIDER" ? "Ask dispatch to add your account as a rider, then reopen this page." : problem.message} />
+          <EmptyState icon={Bike}
+            title={problem.code === "NOT_A_RIDER" ? "Rider profile not set up yet" : problem.code === "RIDER_SUSPENDED" ? "Rider account inactive" : "Delivery access has been removed"}
+            message={problem.code === "NOT_A_RIDER" ? "Your account can deliver, but no rider profile exists yet. Ask dispatch or an administrator to add your vehicle details, then reopen this page."
+              : problem.code === "RIDER_SUSPENDED" ? "Your rider account is inactive. Contact dispatch." : problem.message || "You are no longer authorized for delivery."} />
         </div>
       </Page>
     );
   }
 
   const list = tab === "mine" ? mine : tab === "history" ? history : [];
+  const atCapacity = rider && rider.activeCount >= rider.capacity; // UX only — the server enforces the limit
   return (
     <Page>
-      <PageHeader title="Delivery App" subtitle={`${mine.length} active run${mine.length === 1 ? "" : "s"} · ${rider?.vehicle || ""}`} onBack={() => nav("profile")}
+      <PageHeader title="Delivery App" subtitle={`${capacityLine(rider)} · ${vehicleLine(rider)}`} onBack={() => nav("profile")}
         right={<button onClick={toggleAvailability} disabled={busy === "avail"} className="px-3 py-1.5 rounded-full text-xs font-bold"
           style={{ background: rider?.isAvailable ? TONE.ok : C.mint, color: rider?.isAvailable ? "#fff" : C.navy }}>{rider?.isAvailable ? "Available" : "Off duty"}</button>} />
       <div className="px-4 md:px-0 space-y-3">
+        {loadError && <InlineNotice tone="warn">Couldn't refresh — showing the last loaded deliveries. <button className="underline font-bold" onClick={() => load()}>Retry</button></InlineNotice>}
+        {locationIssue && <InlineNotice tone="warn" icon={MapPin}>{LOCATION_MESSAGE}</InlineNotice>}
         <InlineNotice tone="info" icon={ShieldCheck}>
           Ask the customer for their 4-digit code at the door. The order can only be completed once the server accepts it.
         </InlineNotice>
@@ -110,6 +140,7 @@ export default function DeliveryOrders({ nav }) {
         {tab === "available" && (
           !rider?.isAvailable ? <InlineNotice tone="warn">Switch to Available (top right) to see and take deliveries.</InlineNotice>
           : available.length === 0 ? <EmptyState icon={Package} title="Nothing waiting" message="Packed orders that nobody has taken appear here." />
+          : atCapacity ? <InlineNotice tone="warn">You have {rider.capacity} active deliveries — the most you can carry. Finish one to take another.</InlineNotice>
           : available.map((o) => (
             <div key={o.orderId} className="rounded-2xl p-4" style={{ background: C.white, border: `1px solid ${C.border}` }}>
               <div className="flex items-center gap-3">
@@ -119,13 +150,15 @@ export default function DeliveryOrders({ nav }) {
                   <p className="text-[11px]" style={{ color: C.muted }}>{o.itemCount} items · {fmt(o.total)} · {o.collectCash ? "Collect cash" : "Prepaid"} · {o.area}</p>
                   <p className="text-[11px]" style={{ color: C.muted }}>From {storeById(o.storeId)?.name}</p>
                 </div>
-                <PillButton size="sm" disabled={busy === o.orderId} onClick={() => act(o.orderId, () => deliveryApi.claim(o.orderId), `${o.number} is yours`)}>Take it</PillButton>
+                <PillButton size="sm" disabled={!!busy || atCapacity} onClick={() => act(o.orderId, () => deliveryApi.claim(o.orderId), `${o.number} is yours`)}>Take it</PillButton>
               </div>
             </div>
           ))
         )}
 
-        {tab !== "available" && list.length === 0 && (
+        {tab === "history" && historyState.error && <InlineNotice tone="warn">{historyState.error} <button className="underline font-bold" onClick={loadHistory}>Retry</button></InlineNotice>}
+        {tab === "history" && historyState.loading && history.length === 0 && <p className="text-sm" style={{ color: C.muted }}>Loading…</p>}
+        {tab !== "available" && list.length === 0 && !(tab === "history" && (historyState.loading || historyState.error)) && (
           <EmptyState icon={Package} title={tab === "mine" ? "No active runs" : "No past deliveries"}
             message={tab === "mine" ? "Orders assigned to you — or taken from the Available tab — appear here." : "Finished runs will show here."} />
         )}
@@ -213,15 +246,17 @@ function HandoverSheet({ delivery, onClose, onDone }) {
   const needsCash = delivery.order.collectCash;
   const ready = (!needsOtp || otp.length === 4) && (!needsCash || cash);
 
+  const inFlight = useRef(false);
   const submit = async () => {
-    setBusy(true); setError("");
+    if (inFlight.current) return; // a double-tap must not submit twice (each wrong code costs an attempt)
+    inFlight.current = true; setBusy(true); setError("");
     try {
       await deliveryApi.deliver(delivery.id, { otp: needsOtp ? otp : undefined, cashCollected: needsCash ? delivery.order.total : undefined });
       await onDone();
     } catch (err) {
       setError(err.message || "Couldn't complete the delivery");
       if (err.code === "OTP_MISMATCH") setOtp("");
-    } finally { setBusy(false); }
+    } finally { inFlight.current = false; setBusy(false); }
   };
 
   return (
@@ -254,13 +289,15 @@ function FailSheet({ delivery, onClose, onDone }) {
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
   useEffect(() => { setReason(""); setNote(""); setError(""); }, [delivery?.id]);
   if (!delivery) return null;
   const submit = async () => {
-    setBusy(true); setError("");
+    if (inFlight.current) return;
+    inFlight.current = true; setBusy(true); setError("");
     try { onDone(await deliveryApi.fail(delivery.id, { reason, note })); }
     catch (err) { setError(err.message || "Couldn't report this delivery"); }
-    finally { setBusy(false); }
+    finally { inFlight.current = false; setBusy(false); }
   };
   return (
     <Sheet open onClose={onClose} title="Couldn't deliver"
