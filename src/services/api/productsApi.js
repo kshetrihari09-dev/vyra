@@ -19,6 +19,7 @@ export function toProductPayload(p) {
     unit: p.unit || "piece",
     moq: Number(p.moq) || 1,
     maxQty: Number(p.maxQty) || 10,
+    ...(Number.isFinite(p.minStock) && p.minStock >= 0 ? { minStock: Math.round(p.minStock) } : {}),
     status: p.status || "active",
     deliveryAvailable: p.deliveryAvailable !== false,
     tags: p.tags || [],
@@ -49,7 +50,7 @@ export const productsApi = {
   facets: (params = {}) => api.get("/products/facets", params),
   /** Create (opening stock is optional and needs the inventory:adjust permission). */
   create: async (product, { openingStock } = {}) =>
-    (await api.post("/products", { ...toProductPayload(product), ...(openingStock ? { openingStock } : {}) })).product,
+    (await api.post("/products", { ...toProductPayload(product), ...(product.sellerId ? { sellerId: product.sellerId } : {}), ...(openingStock ? { openingStock } : {}) })).product, // sellerId: create only — the server pins sellers to their own shop and ignores it on edits
   update: async (product) => (await api.put(`/products/${encodeURIComponent(product.id)}`, toProductPayload(product))).product,
   /** Replaces the photo list. Entries: a new upload (data URL) or an existing photo (its URL or storage key). */
   setImages: async (id, images) => (await api.put(`/products/${encodeURIComponent(id)}/images`, {

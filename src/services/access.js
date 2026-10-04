@@ -4,7 +4,7 @@
 
      customer   → /customer/*
      shop owner → /customer/* and /shop/* (their own shop only)
-     staff      → the demo/reviewer identity: may preview any shop */
+     staff      → may open any shop; administrators land on Vyra Retail (the first-party shop) */
 
 import { areaOf } from "./router.js";
 
@@ -52,7 +52,9 @@ export function resolveSeller({ session, shopApplications, sellers, currentSelle
     return seller ? { seller, locked: true } : null;
   }
   if (session?.isStaff) {
-    const seller = sellers.find((s) => s.id === currentSellerId) || sellers[0];
+    // Staff may open any shop. Administrators land on Vyra's own (first-party) shop unless they picked another.
+    const home = sellers.find((s) => s.firstParty) || sellers[0];
+    const seller = sellers.find((s) => s.id === currentSellerId) || (isAdmin(session) ? home : sellers[0]);
     return seller ? { seller, locked: false } : null;
   }
   return null;

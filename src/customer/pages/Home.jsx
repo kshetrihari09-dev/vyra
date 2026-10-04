@@ -106,7 +106,7 @@ export default function Home({ nav }) {
       </section>
 
       {/* 2 — Shop by Category */}
-      <section className="mb-7">
+      <section className="mb-5">
         <SectionHeader title="Shop by Category" subtitle="Every aisle, one app" onViewAll={() => nav("categories")} />
         <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 md:px-0 md:hidden">
           {tops.map((c) => <CategoryCard key={c.id} category={c} variant="chip" onSelect={(id) => nav("category", { categoryId: id })} />)}
@@ -123,7 +123,7 @@ export default function Home({ nav }) {
       <Rail title="Popular Products" subtitle="What everyone's buying right now" items={sections.popular} nav={nav} open={open} sort="bestselling" />
 
       {/* 4 — Flash Deals */}
-      <section className="mb-7">
+      <section className="mb-5">
         <div className="mx-4 md:mx-0 rounded-3xl p-4 md:p-5" style={{ background: C.navy }}>
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -162,7 +162,7 @@ export default function Home({ nav }) {
 
       {/* 8 — Products Near You */}
       {sections.near.length > 0 && (
-        <section className="mb-7">
+        <section className="mb-5">
           <SectionHeader title="Products Near You"
             subtitle={`In stock at ${store.name} · ${store.distanceKm} km away`}
             onViewAll={() => nav("search")} />
@@ -171,7 +171,7 @@ export default function Home({ nav }) {
       )}
 
       {/* 9 — Brands */}
-      <section className="mb-7">
+      <section className="mb-5">
         <SectionHeader title="Brands" subtitle="Shop your favourites" />
         <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 md:px-0">
           {BRANDS.map((b) => (
@@ -190,7 +190,7 @@ export default function Home({ nav }) {
       {/* 10 / 11 — Recently Viewed, Buy Again */}
       {viewed.length > 0 && <Rail title="Recently Viewed" items={viewed} nav={nav} open={open} />}
       {buyAgain.length > 0 && (
-        <section className="mb-7">
+        <section className="mb-5">
           <SectionHeader title="Buy Again" subtitle="From your past orders" onViewAll={() => nav("orders")} actionLabel="Your orders" />
           <ProductRail products={buyAgain} onOpen={open} />
         </section>
@@ -203,7 +203,7 @@ export default function Home({ nav }) {
 function Rail({ title, subtitle, items, open, nav, sort }) {
   if (!items?.length) return null;
   return (
-    <section className="mb-7">
+    <section className="mb-5">
       <SectionHeader title={title} subtitle={subtitle} onViewAll={() => nav("search", sort ? { sort } : {})} />
       <ProductRail products={items} onOpen={open} />
     </section>

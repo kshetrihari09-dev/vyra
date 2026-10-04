@@ -2,7 +2,8 @@ import React, { useMemo, useState } from "react";
 import { useApp } from "../../store/AppContext.jsx";
 import { useShop } from "../hooks/useShopData.js";
 import { useS } from "../components/tokens.js";
-import { Btn, DataTable, EmptyBlock, Field, Input, Metric, Modal, Notice, NumberInput, PageHeader, Pagination, Panel, Pill, SearchField, Select, Tabs, Thumb, useTable } from "../components/kit.jsx";
+import { Btn, DataTable, EmptyBlock, Field, Input, Metric, Modal, Notice, NumberInput, PageHeader, Pagination, Panel, Pill, SearchField, Select, StockMeter, Tabs, Thumb, useTable } from "../components/kit.jsx";
+import { Icon } from "../../components/shared/Icon.jsx";
 import { hasModule } from "../../data/categories.js";
 import { STORES, storeById } from "../../data/stores.js";
 import { CURRENCY, dateTimeLabel, fmt } from "../../utils/format.js";
@@ -84,6 +85,43 @@ function StockDialog({ target, mode, onClose }) {
   );
 }
 
+/* Edit a product's minimum stock level (where low-stock alerts begin). Saved to the server like any product edit. */
+function MinLevelDialog({ row, onClose }) {
+  const s = useS();
+  const { seller } = useShop();
+  const { dispatch, toast, catalog } = useApp();
+  const [value, setValue] = useState(row ? row.min : NaN);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  React.useEffect(() => { setValue(row ? row.min : NaN); setError(""); }, [row]);
+  if (!row) return null;
+  const valid = Number.isInteger(value) && value >= 0;
+  const preview = !valid ? null : row.qty <= 0 ? "Out of stock" : row.qty <= value ? "Low stock" : "Healthy";
+  const submit = async () => {
+    if (!valid) { setError("Enter a whole number, 0 or more."); return; }
+    if (value === row.min) { onClose(); return; }
+    setSaving(true);
+    try {
+      await catalog.updateProduct({ ...row.product, minStock: value });
+      dispatch({ type: "AUDIT", entry: { actor: `${seller.name} (seller)`, action: "Minimum stock changed", detail: `${row.product.name}: ${row.min} → ${value}` } });
+      toast(`Minimum stock for ${row.product.name} set to ${value}`);
+      onClose();
+    } catch (err) {
+      setError(err.message || "Couldn't save the minimum stock level");
+    } finally { setSaving(false); }
+  };
+  return (
+    <Modal open onClose={onClose} title="Minimum stock level" size={420}
+      footer={<><Btn onClick={onClose}>Cancel</Btn><Btn variant="primary" onClick={submit} disabled={saving}>{saving ? "Saving…" : "Save"}</Btn></>}>
+      <div className="space-y-3.5">
+        <div className="flex items-center gap-3"><Thumb product={row.product} size={40} /><div className="min-w-0"><p className="text-sm font-semibold truncate" style={{ color: s.text }}>{row.product.name}</p><p className="text-xs tnum" style={{ color: s.muted }}>{row.qty} in stock now</p></div></div>
+        <Field label="Alert me at or below" error={error} hint="Applies to the whole product, including all of its variants"><NumberInput value={value} onChange={(n) => { setValue(n); setError(""); }} error={error} autoFocus /></Field>
+        {preview && <p className="text-sm px-3 py-2" style={{ background: s.canvas, borderRadius: s.r, color: s.muted }}>With this level, the product would show as <span className="font-semibold" style={{ color: s.text }}>{preview}</span>.</p>}
+      </div>
+    </Modal>
+  );
+}
+
 export default function Inventory({ params }) {
   const s = useS();
   const { seller, inventory, inventoryTotals, movements, categories } = useShop();
@@ -91,6 +129,7 @@ export default function Inventory({ params }) {
   const [q, setQ] = useState(params.q || "");
   const [state, setState] = useState("all");
   const [dialog, setDialog] = useState(null); // { row, mode }
+  const [minRow, setMinRow] = useState(null);
   const canWrite = seller.status === "active";
   const alerts = inventory.filter((r) => ["low", "out"].includes(r.status.key) && r.product.status !== "inactive");
 
@@ -114,8 +153,8 @@ export default function Inventory({ params }) {
   const columns = [
     { key: "name", label: "Product", sortable: true, mobile: "title", render: (r) => <div className="flex items-center gap-3 min-w-0"><Thumb product={r.product} size={36} /><div className="min-w-0"><p className="font-medium truncate max-w-[260px]">{r.name}</p><p className="text-xs tnum md:hidden" style={{ color: s.muted }}>{r.sku}</p></div></div> },
     { key: "sku", label: "SKU", mobile: "hide", render: (r) => <span className="tnum" style={{ color: s.muted }}>{r.sku}</span> },
-    { key: "qty", label: "Current stock", sortable: true, align: "right", render: (r) => <span className="font-semibold">{r.qty}</span> },
-    { key: "min", label: "Minimum", align: "right", render: (r) => r.min },
+    { key: "qty", label: "Current stock", sortable: true, align: "right", render: (r) => <StockMeter qty={r.qty} min={r.min} /> },
+    { key: "min", label: "Minimum", align: "right", render: (r) => <button type="button" disabled={!canWrite} onClick={() => setMinRow(r)} title="Change minimum stock level" className="inline-flex items-center gap-1 tnum px-2 h-7 hover:bg-black/5" style={{ borderRadius: 6, color: s.text }}>{r.min}<Icon name="Pencil" size={12} style={{ color: s.faint }} /></button> },
     { key: "cost", label: "Purchase price", align: "right", render: (r) => (r.cost != null ? fmt(r.cost) : <span style={{ color: s.faint }}>Not set</span>) },
     { key: "price", label: "Selling price", align: "right", render: (r) => fmt(r.price) },
     { key: "value", label: "Stock value", sortable: true, align: "right", render: (r) => <div><p className="font-medium">{fmt(r.value)}</p><p className="text-[11px]" style={{ color: s.muted }}>at {r.valueBasis}</p></div> },
@@ -203,6 +242,7 @@ export default function Inventory({ params }) {
       </Panel>
       {!canWrite && <div className="mt-4"><Notice tone="warn">Stock changes are turned off while this shop isn't active.</Notice></div>}
       {dialog && <StockDialog target={dialog.row} mode={dialog.mode} onClose={() => setDialog(null)} />}
+      {minRow && <MinLevelDialog row={minRow} onClose={() => setMinRow(null)} />}
     </div>
   );
 }

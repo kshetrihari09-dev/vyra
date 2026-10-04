@@ -101,7 +101,7 @@ export function FavoriteButton({ active, onClick, floating = true, size = 32 }) 
 export function SectionHeader({ title, subtitle, onViewAll, actionLabel = "View all" }) {
   const C = useC();
   return (
-    <div className="flex items-end justify-between gap-3 px-4 md:px-0 mb-3">
+    <div className="flex items-end justify-between gap-3 px-4 md:px-0 mb-2">
       <div className="min-w-0">
         <h2 className="font-extrabold text-[17px] md:text-xl leading-tight truncate" style={{ color: C.navy }}>{title}</h2>
         {subtitle && <p className="text-xs md:text-sm mt-0.5 truncate" style={{ color: C.muted }}>{subtitle}</p>}
@@ -170,11 +170,13 @@ export function Skeleton({ className = "", style }) {
 export function ProductCardSkeleton() {
   const C = useC();
   return (
-    <div className="rounded-2xl p-3" style={{ background: C.white, border: `1px solid ${C.border}` }}>
-      <Skeleton className="w-full h-28 mb-3" />
-      <Skeleton className="w-1/3 h-2.5 mb-2" />
-      <Skeleton className="w-4/5 h-3 mb-2" />
-      <Skeleton className="w-1/2 h-3" />
+    <div className="rounded-xl overflow-hidden" style={{ background: C.white, border: `1px solid ${C.border}` }}>
+      <Skeleton className="w-full" style={{ aspectRatio: "1 / 1", borderRadius: 0 }} />
+      <div className="p-2">
+        <Skeleton className="w-1/3 h-2 mb-2" />
+        <Skeleton className="w-4/5 h-3 mb-2" />
+        <Skeleton className="w-1/2 h-3" />
+      </div>
     </div>
   );
 }

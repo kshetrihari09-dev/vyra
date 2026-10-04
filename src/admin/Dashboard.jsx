@@ -39,12 +39,16 @@ const SECTIONS = [
     uses, so a change here is visible to customers immediately. */
 export default function Admin({ nav, params }) {
   const C = useC();
-  const { session } = useApp();
+  const { session, sellers, dispatch } = useApp();
   const [section, setSection] = useState(params.section || "overview");
 
   return (
     <Page wide>
-      <PageHeader title="Admin Console" subtitle="Catalogue, inventory, orders and reports" onBack={() => nav("profile")} />
+      <PageHeader title="Admin Console" subtitle="Catalogue, inventory, orders and reports" onBack={() => nav("profile")}
+        right={<button onClick={() => { dispatch({ type: "SELLER_SWITCH", id: (sellers.find((x) => x.firstParty) || {}).id || null }); nav("shopDashboard"); }}
+          className="px-3.5 py-2 rounded-full text-xs font-bold flex items-center gap-1.5" style={{ background: C.primary, color: "#fff" }}>
+          <Icon name="Store" size={14} /> Vyra Shop
+        </button>} />
       <div className="px-4 md:px-0">
         <div className="flex gap-2 overflow-x-auto no-scrollbar mb-5">
           {SECTIONS.filter((s) => !s.needs || s.needs(session)).map((s) => (

@@ -445,3 +445,26 @@ export function useWidth(ref, fallback = 640) {
   }, [ref]);
   return w;
 }
+
+/* ------------------------------- STOCK METER -------------------------------
+   Quantity next to a thin bar that fills against 2x the minimum level: empty = out, amber = at/below the minimum,
+   green = healthy. Shows "Min N" underneath so the threshold is always visible where the stock is. */
+export function StockMeter({ qty, min = 0, compact = false }) {
+  const s = useS();
+  const out = qty <= 0;
+  const low = !out && qty <= min;
+  const color = out ? TONE.danger : low ? "#D9961A" : TONE.ok;
+  const full = Math.max(min * 2, 1);
+  const pct = out ? 0 : Math.max(6, Math.min(100, Math.round((qty / full) * 100)));
+  return (
+    <div className={compact ? "w-24" : "w-28"} style={{ marginLeft: "auto" }}>
+      <div className="flex items-baseline justify-end gap-1">
+        <span className="font-semibold tnum" style={{ color: out || low ? color : s.text }}>{qty}</span>
+        <span className="text-[11px] tnum" style={{ color: s.faint }}>/ min {min}</span>
+      </div>
+      <div className="mt-1 h-1.5 overflow-hidden" style={{ background: s.lineSoft, borderRadius: 999 }} aria-hidden="true">
+        <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 999, transition: "width .25s ease" }} />
+      </div>
+    </div>
+  );
+}

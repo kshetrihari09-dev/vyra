@@ -24,3 +24,28 @@ input[type=range] { height: 4px; border-radius: 999px; background: #E5F0EE; }
 @keyframes vyra-settle { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: none; } }
 .vyra-settle { animation: vyra-settle .6s cubic-bezier(.2, .7, .2, 1) both; animation-delay: var(--d, 0ms); }
 @media (prefers-reduced-motion: reduce) { .vyra-settle { animation: none; } }
+
+/* ---- Compact product grid / rail (ProductCard.jsx) ---- */
+.vgrid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 640px)  { .vgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 768px)  { .vgrid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; } }
+@media (min-width: 1280px) { .vgrid { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); } }
+
+/* Rail: phones scroll sideways showing ~2 cards; md+ shows a single auto-filled row (extra items clipped). */
+.vrail { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; scroll-snap-type: x proximity; }
+.vrail::-webkit-scrollbar { display: none; }
+.vrail > * { flex: 0 0 calc((100% - 10px - 32px) / 2.1); scroll-snap-align: start; }
+@media (min-width: 768px) {
+  .vrail { display: grid; gap: 12px; overflow: hidden; scroll-snap-type: none;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); grid-template-rows: auto; grid-auto-rows: 0; }
+  .vrail > * { flex: none; }
+}
+@media (min-width: 1280px) { .vrail { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); } }
+
+.vcard { transition: box-shadow .15s ease, transform .15s ease; }
+.vcard-img-inner { transition: transform .2s ease; }
+.vcard-add:hover:not(:disabled) { background: #E9FAF6 !important; }
+@media (hover: hover) and (min-width: 768px) {
+  .vcard:hover { box-shadow: 0 4px 14px rgba(6,63,80,.10); transform: translateY(-2px); }
+  .vcard:hover .vcard-img-inner { transform: scale(1.04); }
+}

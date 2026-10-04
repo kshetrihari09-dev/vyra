@@ -11,7 +11,7 @@
 
 export const SELLERS = [
   {
-    id: "vyra-retail", name: "Vyra Retail", firstParty: true,
+    id: "vyra-retail", name: "Vyra Center", firstParty: true,
     status: "active", commissionRate: 0, rating: 4.8, reviews: 12400,
     joinedAt: "2024-01-01", payoutMethod: "N/A — first-party", contactEmail: "ops@vyra.com",
     brands: ["gsk", "cipla", "sunpharma", "healthvit", "drtrust", "mothercare"],

@@ -168,7 +168,7 @@ function PreviewSwitch({ full }) {
     <label className={`flex items-center gap-2 ${full ? "" : "hidden lg:flex"}`}>
       <span className="text-xs shrink-0" style={{ color: s.muted }}>Preview as</span>
       <Select value={seller.id} onChange={(e) => dispatch({ type: "SELLER_SWITCH", id: e.target.value })} aria-label="Preview as shop" className={full ? "" : "!w-48"}>
-        {sellers.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+        {[...sellers].sort((a, b) => (b.firstParty ? 1 : 0) - (a.firstParty ? 1 : 0)).map((x) => <option key={x.id} value={x.id}>{x.firstParty ? `${x.name} (Vyra)` : x.name}</option>)}
       </Select>
     </label>
   );

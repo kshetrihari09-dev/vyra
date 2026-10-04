@@ -2,13 +2,14 @@ import React, { useMemo, useState } from "react";
 import { useApp } from "../../store/AppContext.jsx";
 import { useShop } from "../hooks/useShopData.js";
 import { useS } from "../components/tokens.js";
-import { Btn, ConfirmModal, DataTable, EmptyBlock, IconBtn, Modal, PageHeader, Pagination, Panel, Pill, SearchField, Select, Tabs, Thumb, useTable } from "../components/kit.jsx";
+import { Btn, ConfirmModal, DataTable, EmptyBlock, IconBtn, Metric, Modal, PageHeader, Pagination, Panel, Pill, SearchField, Select, StockMeter, Tabs, Thumb, useTable } from "../components/kit.jsx";
 import ProductForm from "../components/ProductForm.jsx";
-import { productStatus, totalStock, discountPct } from "../../services/sellerAnalytics.js";
+import { productStatus, totalStock, discountPct, minStockOf } from "../../services/sellerAnalytics.js";
 import { resolveCategory } from "../../data/categories.js";
 import { brandById } from "../../data/brands.js";
 import { priceOf } from "../../utils/pricing.js";
 import { fmt } from "../../utils/format.js";
+import { TONE } from "../../theme.js";
 
 export default function Products({ nav, params }) {
   const s = useS();
@@ -23,13 +24,13 @@ export default function Products({ nav, params }) {
   const canWrite = seller.status === "active";
 
   const soldIds = useMemo(() => new Set(orders.flatMap((o) => o.items.map((i) => i.productId))), [orders]);
-  const all = useMemo(() => listings.map((p) => {
+  const all = useMemo(() => listings.map((p, seq) => {
     const qty = totalStock(p);
-    return { p, id: p.id, name: p.name, qty, status: productStatus(p, qty), price: priceOf(p).price, root: resolveCategory(p.categoryId, categories)?.root, updated: p.updatedAt || p.createdAt };
+    return { p, id: p.id, name: p.name, qty, min: minStockOf(p), status: productStatus(p, qty), price: priceOf(p).price, root: resolveCategory(p.categoryId, categories)?.root, updated: p.updatedAt || p.createdAt, seq };
   }), [listings, categories]);
 
   const counts = useMemo(() => {
-    const c = { all: all.length, active: 0, low: 0, out: 0, inactive: 0, review: 0 };
+    const c = { all: all.length, active: 0, low: 0, out: 0, inactive: 0, review: 0, rejected: 0, draft: 0 };
     all.forEach((r) => { c[r.status.key] += 1; });
     return c;
   }, [all]);
@@ -43,8 +44,16 @@ export default function Products({ nav, params }) {
 
   const table = useTable(filtered, {
     initialSort: { key: "updated", dir: "desc" }, pageSize: 10,
-    sortAccessors: { name: (r) => r.name.toLowerCase(), price: (r) => r.price, qty: (r) => r.qty, updated: (r) => new Date(r.updated).getTime() },
+    sortAccessors: { name: (r) => r.name.toLowerCase(), price: (r) => r.price, qty: (r) => r.qty, // Full timestamp first; products with only a date (or none) fall back to cache order, newest last-added first.
+      updated: (r) => (new Date(r.updated).getTime() || 0) + r.seq / 1000 },
   });
+
+  // A newly created product should be visible straight away: clear filters and go to page 1 whenever the shop gains a listing.
+  const prevCount = React.useRef(listings.length);
+  React.useEffect(() => {
+    if (listings.length > prevCount.current) { setTab("all"); setCat("all"); setQ(""); table.setSort({ key: "updated", dir: "desc" }); table.setPage(1); }
+    prevCount.current = listings.length;
+  }, [listings.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggle = async (r) => {
     const next = r.p.status === "active" ? "inactive" : "active";
@@ -70,7 +79,7 @@ export default function Products({ nav, params }) {
   const actions = (r) => (
     <div className="flex items-center gap-1 justify-end">
       <Btn size="sm" icon="Pencil" onClick={() => setEditing(r.p)} disabled={!canWrite}>Edit</Btn>
-      {r.status.key !== "review" && <Btn size="sm" icon={r.p.status === "active" ? "Ban" : "Eye"} onClick={() => toggle(r)} disabled={!canWrite}>{r.p.status === "active" ? "Deactivate" : "Activate"}</Btn>}
+      {!["review", "rejected", "draft"].includes(r.status.key) && <Btn size="sm" icon={r.p.status === "active" ? "Ban" : "Eye"} onClick={() => toggle(r)} disabled={!canWrite}>{r.p.status === "active" ? "Deactivate" : "Activate"}</Btn>}
       <IconBtn icon="Trash2" label={`Delete ${r.name}`} onClick={() => askDelete(r)} tone="#E0546A" />
     </div>
   );
@@ -82,7 +91,7 @@ export default function Products({ nav, params }) {
     { key: "sku", label: "SKU", render: (r) => <span className="tnum" style={{ color: s.muted }}>{r.p.sku}</span> },
     { key: "price", label: "Price", sortable: true, align: "right", render: (r) => {
       const d = discountPct(r.p); return <div><p className="font-medium">{fmt(r.price)}</p>{d > 0 && <p className="text-xs" style={{ color: s.muted }}><s>{fmt(priceOf(r.p).mrp)}</s> · {d}% off</p>}</div>; } },
-    { key: "qty", label: "Stock", sortable: true, align: "right", render: (r) => <span className="font-medium">{r.qty}</span> },
+    { key: "qty", label: "Stock", sortable: true, align: "right", render: (r) => <StockMeter qty={r.qty} min={r.min} /> },
     { key: "status", label: "Status", mobile: "aside", render: (r) => <Pill tone={r.status.tone}>{r.status.label}</Pill> },
     { key: "actions", label: "", align: "right", mobile: "footer", render: actions },
   ];
@@ -91,12 +100,20 @@ export default function Products({ nav, params }) {
     <div>
       <PageHeader title="Products" description="Everything you sell, with price, stock and status in one place."
         actions={<Btn variant="primary" icon="Plus" onClick={() => setEditing("new")} disabled={!canWrite}>Add product</Btn>} />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <Metric label="Total products" icon="Package" value={counts.all} hint={`${counts.active + counts.low + counts.out} live`} onClick={() => { setTab("all"); table.setPage(1); }} />
+        <Metric label="In review" icon="Clock" value={counts.review} hint={counts.rejected ? `${counts.rejected} rejected` : "Awaiting approval"} onClick={() => { setTab("review"); table.setPage(1); }} />
+        <Metric label="Low stock" icon="Package" value={counts.low} hint="At or below minimum" tone={counts.low ? "#D9961A" : undefined} onClick={() => { setTab("low"); table.setPage(1); }} />
+        <Metric label="Out of stock" icon="AlertTriangle" value={counts.out} hint="Needs restocking" tone={counts.out ? TONE.danger : undefined} onClick={() => { setTab("out"); table.setPage(1); }} />
+      </div>
       <Panel padded={false}>
         <div className="px-4 pt-1">
           <Tabs value={tab} onChange={(t) => { setTab(t); table.setPage(1); }} items={[
             { id: "all", label: "All", count: counts.all }, { id: "active", label: "Active", count: counts.active },
             { id: "low", label: "Low stock", count: counts.low }, { id: "out", label: "Out of stock", count: counts.out },
             { id: "inactive", label: "Inactive", count: counts.inactive }, ...(counts.review ? [{ id: "review", label: "In review", count: counts.review }] : []),
+            ...(counts.rejected ? [{ id: "rejected", label: "Rejected", count: counts.rejected }] : []),
+            ...(counts.draft ? [{ id: "draft", label: "Draft", count: counts.draft }] : []),
           ]} />
         </div>
         <div className="flex flex-col sm:flex-row gap-2 p-4">

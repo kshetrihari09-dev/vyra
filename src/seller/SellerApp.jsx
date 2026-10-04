@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useApp } from "../store/AppContext.jsx";
-import { resolveSeller } from "../services/access.js";
+import { resolveSeller, isAdmin } from "../services/access.js";
+import { SELLERS } from "../data/sellers.js";
 import { ShopCtx, useShopData } from "./hooks/useShopData.js";
 import SellerLayout from "./layout/SellerLayout.jsx";
 import ShopGate from "./layout/ShopGate.jsx";
@@ -38,8 +39,15 @@ function Workspace({ seller, locked, view, params, nav }) {
     from the existing session — so no seller page can render for someone who
     isn't allowed to see it. */
 export default function SellerApp({ view, params, nav }) {
-  const { session, shopApplications, sellers, currentSellerId } = useApp();
+  const { session, shopApplications, sellers, currentSellerId, catalog, dispatch } = useApp();
+  // Admins always have Vyra Center in the shop list, even before the sellers API has answered (or if it failed).
+  const needsVyra = isAdmin(session) && !sellers.some((x) => x.firstParty);
+  useEffect(() => { if (needsVyra) dispatch({ type: "SELLERS_LOADED", sellers: SELLERS.filter((x) => x.firstParty) }); }, [needsVyra]); // eslint-disable-line react-hooks/exhaustive-deps
   const resolved = resolveSeller({ session, shopApplications, sellers, currentSellerId });
+  const viewedId = resolved?.seller?.id;
+  const staffView = !!resolved && !resolved.locked;
+  // Staff (admins) opening a shop need that shop's complete product list, not just the capped storefront preload.
+  useEffect(() => { if (staffView && viewedId) catalog.loadShopListings(viewedId); }, [staffView, viewedId]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!resolved) return <ShopGate reason="not_shop_owner" nav={nav} />;
   if (resolved.seller.status !== "active") return <ShopGate reason={resolved.seller.status} seller={resolved.seller} nav={nav} />;
   return <Workspace seller={resolved.seller} locked={resolved.locked} view={view} params={params} nav={nav} />;

@@ -75,7 +75,7 @@ export default function ProductForm({ open, product, seller, onClose, onOpenInve
     }
     if (Number.isFinite(f.costPrice) && f.costPrice < 0) e.costPrice = "Purchase price can't be negative.";
     if (!(f.tax >= 0 && f.tax <= 100)) e.tax = "Tax must be between 0 and 100.";
-    if (!(f.minStock >= 0)) e.minStock = "Enter 0 or more.";
+    if (!(f.minStock >= 0) || !Number.isInteger(f.minStock)) e.minStock = "Enter a whole number, 0 or more.";
     if (isNew && !hasVariants && !(opening >= 0)) e.opening = "Enter 0 or more.";
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -173,19 +173,28 @@ export default function ProductForm({ open, product, seller, onClose, onOpenInve
         </div>
       </Section>
 
-      <Section title="Stock">
-        {isNew ? (
-          <div className="grid grid-cols-2 gap-3">
-            {hasVariants ? <div className="col-span-2"><Notice tone="info">Variant stock is managed per variant in Inventory after the product is created.</Notice></div> :
-              <Field label="Opening stock" error={err("opening")} hint={`At ${STORES[0].name}`}><NumberInput value={opening} onChange={setOpening} error={err("opening")} /></Field>}
-            <Field label="Minimum stock level" error={err("minStock")} hint="Alerts start at or below this"><NumberInput value={f.minStock} onChange={(n) => set({ minStock: n })} error={err("minStock")} /></Field>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 items-end">
-            <Field label="Current stock" hint="Changes are recorded in the inventory history"><div className="h-9 flex items-center gap-3"><span className="tnum text-sm font-semibold" style={{ color: s.text }}>{totalStock(f)} in stock</span>{onOpenInventory && <Btn size="sm" onClick={() => onOpenInventory(f)}>Adjust stock</Btn>}</div></Field>
-            <Field label="Minimum stock level" error={err("minStock")} hint="Alerts start at or below this"><NumberInput value={f.minStock} onChange={(n) => set({ minStock: n })} error={err("minStock")} /></Field>
-          </div>
-        )}
+      <Section title="Stock" hint="Set how much you hold and when you want to be warned.">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {isNew ? (
+            hasVariants
+              ? <div className="sm:col-span-2"><Notice tone="info">Variant stock is managed per variant in Inventory after the product is created.</Notice></div>
+              : <Field label="Opening stock" error={err("opening")} hint={`Units on hand at ${STORES[0].name}`}><NumberInput value={opening} onChange={setOpening} error={err("opening")} /></Field>
+          ) : (
+            <Field label="Current stock" hint="Changes are recorded in the inventory history">
+              <div className="h-9 flex items-center gap-3"><span className="tnum text-sm font-semibold" style={{ color: s.text }}>{totalStock(f)} in stock</span>{onOpenInventory && <Btn size="sm" onClick={() => onOpenInventory(f)}>Adjust stock</Btn>}</div>
+            </Field>
+          )}
+          <Field label="Minimum stock level" error={err("minStock")} hint="Warn me when stock falls to this number or lower">
+            <NumberInput value={f.minStock} onChange={(n) => set({ minStock: n })} error={err("minStock")} />
+          </Field>
+        </div>
+        {(() => {
+          const min = Number.isFinite(f.minStock) ? f.minStock : null;
+          const qty = isNew ? (hasVariants ? null : (Number.isFinite(opening) ? opening : 0)) : totalStock(f);
+          if (min == null || qty == null) return null;
+          const state = qty <= 0 ? ["danger", "Out of stock"] : qty <= min ? ["warn", `Low stock — ${qty} is at or below the minimum of ${min}`] : ["ok", `Healthy — ${qty - min} unit${qty - min === 1 ? "" : "s"} above the minimum of ${min}`];
+          return <div className="mt-3"><Notice tone={state[0]}>{state[1]}</Notice></div>;
+        })()}
       </Section>
 
       <Section title="Status">

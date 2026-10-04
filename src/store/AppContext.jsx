@@ -217,7 +217,14 @@ export function reducer(state, action) {
     case "NOTIFICATION_READ": return { ...state, notifications: state.notifications.map((n) => (n.id === action.id ? { ...n, unread: false } : n)), notificationsUnread: action.unread };
     case "NOTIFY_READ": return { ...state, notifications: state.notifications.map((n) => ({ ...n, unread: false })), notificationsUnread: 0 };
 
-    case "CATALOG_LOADED": return { ...state, categories: action.categories, products: action.products, catalogTotal: action.total, catalogVersion: state.catalogVersion + 1 };
+    case "CATALOG_LOADED": {
+      // The public preload only returns active products. Keep the signed-in shop's own pending/inactive/rejected
+      // listings that are already cached, otherwise a catalogue reload silently erases them from Seller Console.
+      const own = state.session.shopOwnerSellerId;
+      const incoming = new Set(action.products.map((p) => p.id));
+      const kept = own ? state.products.filter((p) => p.sellerId === own && !incoming.has(p.id)) : [];
+      return { ...state, categories: action.categories, products: [...action.products, ...kept], catalogTotal: action.total, catalogVersion: state.catalogVersion + 1 };
+    }
     case "CATEGORIES_SET": return { ...state, categories: action.categories, catalogVersion: state.catalogVersion + 1 };
     case "PRODUCTS_UPSERT": {
       // Merge fetched rows into the cache: replace in place, append the new ones. The server's copy wins.
@@ -322,6 +329,19 @@ export function AppProvider({ children }) {
 
   /* Load categories + brands (small config lists, whole) and warm the product cache. Staff get inactive items and
      batch costs too — the server decides from the token; we always ask for everything and it filters by permission. */
+  /* Every product this shop owns, whatever its status (pending_review, active, inactive, rejected, draft).
+     Scoped by sellerId on the server, and paged so shops with more than 100 listings are complete. */
+  const loadOwnListings = useCallback(async (sellerId) => {
+    if (!sellerId) return;
+    try {
+      for (let page = 1; page <= 50; page++) {
+        const res = await productsApi.list({ status: "any", sellerId, page, pageSize: 100 });
+        if (res.items.length) dispatch({ type: "PRODUCTS_UPSERT", products: res.items });
+        if (page * 100 >= res.total || !res.items.length) break;
+      }
+    } catch { /* transient — the next load retries */ }
+  }, []);
+
   const loadCatalog = useCallback(async () => {
     try {
       setCatalogError(null);
@@ -351,7 +371,9 @@ export function AppProvider({ children }) {
     };
     const refreshBrands = async () => hydrateRegistries({ brands: await catalogApi.brands({ includeInactive: true }) });
     return {
-      reload: loadCatalog,
+      reload: async () => { await loadCatalog(); await loadOwnListings(state.session.shopOwnerSellerId); },
+      reloadOwnListings: () => loadOwnListings(state.session.shopOwnerSellerId),
+      loadShopListings: (sellerId) => loadOwnListings(sellerId), // staff opening a shop: pull that shop's full list, whatever the preload cap
       cacheProducts: (items) => { if (items?.length) dispatch({ type: "PRODUCTS_UPSERT", products: items }); },
       async createProduct(product, opts) {
         const { images, ...apiOpts } = opts || {};
@@ -364,6 +386,7 @@ export function AppProvider({ children }) {
         }
         dispatch({ type: "PRODUCTS_UPSERT", products: [saved] });
         if (product.brandName) await refreshBrands();
+        if (saved.sellerId) loadOwnListings(saved.sellerId); // background re-sync; the row is already in the list above
         return saved;
       },
       async updateProduct(product, { images } = {}) {
@@ -383,7 +406,7 @@ export function AppProvider({ children }) {
       },
       async toggleCategory(id) { await catalogApi.toggleCategory(id); await refreshCategories(); },
     };
-  }, [loadCatalog]);
+  }, [loadCatalog, loadOwnListings, state.session.shopOwnerSellerId]);
 
   /* Addresses, orders and wishlist are per-customer, so they only load once someone is signed in (guests get
      empty lists — cart pricing itself works without an account). Orders come back already scoped by the server:
@@ -414,7 +437,7 @@ export function AppProvider({ children }) {
     else if (session.shopOwnerSellerId) sellersApi.mine().then((seller) => seller && dispatch({ type: "SELLERS_LOADED", sellers: [seller] })).catch(() => {});
     // The catalogue preload only ever returns public (active) products to a shop owner — their own pending,
     // inactive and rejected listings need an explicit, own-shop-scoped fetch.
-    if (session.shopOwnerSellerId && !perms.includes("catalog:write")) productsApi.list({ status: "any", sellerId: session.shopOwnerSellerId, pageSize: 100 }).then((page) => dispatch({ type: "PRODUCTS_UPSERT", products: page.items })).catch(() => {});
+    if (session.shopOwnerSellerId) loadOwnListings(session.shopOwnerSellerId); // always: the preload is capped at 100 products, so a shop's own listings can fall outside it
     if (perms.includes("payouts:read_all")) sellersApi.allPayouts().then((payouts) => dispatch({ type: "SELLER_PAYOUTS_LOADED", payouts })).catch(() => {});
     else if (session.shopOwnerSellerId) sellersApi.payouts(session.shopOwnerSellerId).then((payouts) => dispatch({ type: "SELLER_PAYOUTS_LOADED", payouts })).catch(() => {});
   }, []);

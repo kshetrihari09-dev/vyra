@@ -32,10 +32,14 @@ export const STOCK_STATUS = {
   out: { key: "out", label: "Out of stock", tone: "danger" },
   inactive: { key: "inactive", label: "Inactive", tone: "neutral" },
   review: { key: "review", label: "In review", tone: "info" },
+  rejected: { key: "rejected", label: "Rejected", tone: "danger" },
+  draft: { key: "draft", label: "Draft", tone: "neutral" },
 };
 
 export function productStatus(product, qty = totalStock(product)) {
   if (product.status === "pending_review") return STOCK_STATUS.review;
+  if (product.status === "rejected") return STOCK_STATUS.rejected;
+  if (product.status === "draft") return STOCK_STATUS.draft;
   if (product.status === "inactive") return STOCK_STATUS.inactive;
   if (qty <= 0) return STOCK_STATUS.out;
   if (qty <= minStockOf(product)) return STOCK_STATUS.low;
