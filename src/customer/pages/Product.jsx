@@ -148,13 +148,15 @@ function ProductView({ nav, params, product }) {
         {/* Gallery */}
         <div className="px-4 md:px-0 min-w-0">
           <div className="relative rounded-3xl overflow-hidden h-[300px] sm:h-[380px] lg:h-[460px]" style={{ background: C.white, border: `1px solid ${C.border}` }}>
-            <ProductArt key={imgIdx} product={heroProduct} variantId={variantId} size={230} rounded={false} />
+            <ZoomFrame key={imgIdx} label={`Zoom ${product.name} image`}>
+              <ProductArt product={heroProduct} variantId={variantId} size={230} rounded={false} />
+            </ZoomFrame>
             <FavoriteButton active={isFav} onClick={() => {
               if (!session.signedIn) { toast("Sign in to save favorites"); return; }
               commerce.toggleWishlist(product.id).catch((err) => toast(err.message || "Couldn't update favorites", "danger"));
             }} size={38} />
             {discountPct > 0 && (
-              <span className="absolute top-3 left-3 px-2 py-0.5 rounded-md text-[11px] font-extrabold" style={{ background: TONE.danger, color: "#fff" }}>{discountPct}% OFF</span>
+              <span className="absolute top-3 left-3 z-10 pointer-events-none px-2 py-0.5 rounded-md text-[11px] font-extrabold" style={{ background: TONE.danger, color: "#fff" }}>{discountPct}% OFF</span>
             )}
           </div>
           {(hasPhotoGallery || thumbVariants.length > 0) && (
@@ -399,6 +401,37 @@ function ProductView({ nav, params, product }) {
       </div>
       </div>
     </Page>
+  );
+}
+
+/** Magnifier: hover (mouse) or tap (touch / keyboard) zooms the image in place; the zoom follows the pointer.
+    Owns its own state so pointer moves never re-render the whole product page. */
+const ZOOM = 2.4;
+function ZoomFrame({ children, label }) {
+  const [z, setZ] = useState({ on: false, x: 50, y: 50 });
+  const kind = useRef("mouse");
+  const at = (e, el) => {
+    const r = el.getBoundingClientRect();
+    return { x: Math.min(100, Math.max(0, ((e.clientX - r.left) / r.width) * 100)), y: Math.min(100, Math.max(0, ((e.clientY - r.top) / r.height) * 100)) };
+  };
+  return (
+    <div role="button" tabIndex={0} aria-label={label} aria-pressed={z.on}
+      className="absolute inset-0 overflow-hidden"
+      style={{ cursor: z.on ? "zoom-out" : "zoom-in", touchAction: z.on ? "none" : "manipulation" }}
+      onPointerEnter={(e) => { kind.current = e.pointerType; if (e.pointerType === "mouse") setZ({ on: true, ...at(e, e.currentTarget) }); }}
+      onPointerMove={(e) => { if (z.on) setZ({ on: true, ...at(e, e.currentTarget) }); }}
+      onPointerLeave={(e) => { if (e.pointerType === "mouse") setZ((p) => ({ ...p, on: false })); }}
+      onPointerDown={(e) => { kind.current = e.pointerType; }}
+      onClick={(e) => { if (kind.current === "mouse") return; setZ((p) => (p.on ? { ...p, on: false } : { on: true, ...at(e, e.currentTarget) })); }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setZ((p) => ({ on: !p.on, x: 50, y: 50 })); }
+        else if (e.key === "Escape") setZ((p) => ({ ...p, on: false }));
+      }}
+      onBlur={() => setZ((p) => ({ ...p, on: false }))}>
+      <div className="pdp-zoom w-full h-full" style={{ transform: z.on ? `scale(${ZOOM})` : "none", transformOrigin: `${z.x}% ${z.y}%` }}>
+        {children}
+      </div>
+    </div>
   );
 }
 
