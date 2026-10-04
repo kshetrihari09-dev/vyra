@@ -49,3 +49,16 @@ input[type=range] { height: 4px; border-radius: 999px; background: #E5F0EE; }
   .vcard:hover { box-shadow: 0 4px 14px rgba(6,63,80,.10); transform: translateY(-2px); }
   .vcard:hover .vcard-img-inner { transform: scale(1.04); }
 }
+
+/* ---- Product detail page (customer/pages/Product.jsx) ----
+   Theme colours arrive as CSS variables set on the .pdp root so hover/selected/focus states can be styled in CSS. */
+.pdp :is(button, a, [role="tab"]):focus-visible { outline: 2px solid var(--pdp-accent, #0FAF8F); outline-offset: 2px; }
+.pdp-opt, .pdp-thumb { border: 1.5px solid var(--pdp-border, #E5F0EE); transition: border-color .15s ease, background-color .15s ease; }
+.pdp-opt:hover:not(:disabled), .pdp-thumb:hover { border-color: var(--pdp-accent, #0FAF8F); }
+.pdp-opt[aria-checked="true"] { border-color: var(--pdp-accent, #0FAF8F); background: var(--pdp-mint, #E9FAF6); }
+.pdp-thumb[aria-current="true"] { border-color: var(--pdp-accent, #0FAF8F); }
+.pdp-cta { transition: filter .15s ease, transform .1s ease, background-color .15s ease; }
+.pdp-cta:hover:not(:disabled) { filter: brightness(.96); }
+.pdp-cta:active:not(:disabled) { transform: scale(.98); }
+.pdp-cta:disabled { cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) { .pdp-opt, .pdp-thumb, .pdp-cta { transition: none; } .pdp-cta:active:not(:disabled) { transform: none; } }
