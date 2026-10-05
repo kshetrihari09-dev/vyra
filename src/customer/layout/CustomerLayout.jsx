@@ -57,7 +57,7 @@ function StoreSelector({ compact }) {
   );
 }
 
-export function MobileHeader({ nav, query, setQuery }) {
+export function MobileHeader({ nav, view, query, setQuery }) {
   const { cartCount, session, shopApplications, unread } = useApp();
   const C = useC();
   const role = roleOf(session, shopApplications);
@@ -71,7 +71,7 @@ export function MobileHeader({ nav, query, setQuery }) {
         <IconCircleButton icon={ShoppingCart} ariaLabel="Cart" badge={cartCount} size={36} onClick={() => nav("cart")} />
         <IconCircleButton icon={User} ariaLabel="Profile" size={36} onClick={() => nav("profile")} />
       </div>
-      <SearchBar value={query} onChange={setQuery} onSubmit={() => nav("search")}
+      <SearchBar value={query} onChange={setQuery} onSubmit={() => nav("search")} autoFocus={view === "search" && !query}
         onPick={(s) => {
           if (s.type === "product") nav("product", { productId: s.id });
           else if (s.type === "category") nav("category", { categoryId: s.id });

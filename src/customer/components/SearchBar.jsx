@@ -19,6 +19,7 @@ export function SearchBar({ value, onChange, onSubmit, onPick, autoFocus, placeh
   const C = useC();
   const [open, setOpen] = useState(false);
   const boxRef = useRef(null);
+  const inputRef = useRef(null);
   const debounced = useDebounced(value, 200);
   const [suggestions, setSuggestions] = useState([]);
 
@@ -30,6 +31,9 @@ export function SearchBar({ value, onChange, onSubmit, onPick, autoFocus, placeh
     searchApi.suggest(term).then((list) => { if (alive) setSuggestions(list); }).catch(() => { if (alive) setSuggestions([]); });
     return () => { alive = false; };
   }, [debounced]);
+
+  /* The header bar outlives page changes, so the native autoFocus attribute (mount only) isn't enough. */
+  useEffect(() => { if (autoFocus) inputRef.current?.focus(); }, [autoFocus]);
 
   useEffect(() => {
     const onDoc = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
@@ -63,7 +67,7 @@ export function SearchBar({ value, onChange, onSubmit, onPick, autoFocus, placeh
       <div className="flex items-center gap-2 rounded-full px-4 h-11 md:h-12" style={{ background: C.white, border: `1px solid ${C.border}` }}>
         <Search size={17} style={{ color: C.muted }} className="shrink-0" />
         <input
-          value={value} autoFocus={autoFocus} placeholder={placeholder}
+          ref={inputRef} value={value} placeholder={placeholder}
           onChange={(e) => { onChange(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onKeyDown={(e) => e.key === "Enter" && submit()}

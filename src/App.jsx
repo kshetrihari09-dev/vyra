@@ -123,7 +123,7 @@ function Shell() {
   } else {
     body = (
       <>
-        <MobileHeader nav={nav} query={query} setQuery={setQuery} />
+        <MobileHeader nav={nav} view={view} query={query} setQuery={setQuery} />
         <DesktopHeader nav={nav} view={view} query={query} setQuery={setQuery} />
         <div key={route.id}>{customerPage()}</div>
         <BottomNav view={view} nav={nav} />
