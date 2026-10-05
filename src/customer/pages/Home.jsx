@@ -1,12 +1,12 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useApp, useC } from "../../store/AppContext.jsx";
 import { Page } from "../layout/CustomerLayout.jsx";
 import { SectionHeader, PillButton, Badge } from "../../components/shared/ui.jsx";
-import HeroArt from "../components/HeroArt.jsx";
+import { HERO_SCENES, FloatingLeaves } from "../components/HeroScene.jsx";
 import { CategoryCard } from "../components/CategoryCard.jsx";
 import { ProductRail, ProductCard } from "../components/ProductCard.jsx";
 import { ProductArt } from "../../components/shared/ProductArt.jsx";
-import { Icon, ArrowRight, Clock, Percent, Tag, Truck, ShieldCheck, Headphones, MapPin } from "../../components/shared/Icon.jsx";
+import { Icon, ArrowRight, Clock, Percent, Tag, Truck, ShieldCheck, Headphones, MapPin, Star } from "../../components/shared/Icon.jsx";
 import { topCategories, categoryTreeIds } from "../../data/categories.js";
 import { BRANDS } from "../../data/brands.js";
 import { STORES } from "../../data/stores.js";
@@ -16,6 +16,86 @@ import { priceOf } from "../../utils/pricing.js";
 import { stockFor } from "../../utils/inventory.js";
 import { fmt } from "../../utils/format.js";
 import { TONE } from "../../theme.js";
+
+/* Hero banner. Background is the active theme's gradient (primary -> primaryDark) — unchanged from before, so all four
+   themes (teal / ocean / coral / violet) keep their colour. Slider state lives here so timer ticks don't re-render Home. */
+const TRUST = [
+  { icon: Star, label: "Quality Products" },
+  { icon: ShieldCheck, label: "Trusted Sellers" },
+  { icon: Truck, label: "Fast Delivery" },
+];
+function HeroBanner({ nav }) {
+  const C = useC();
+  const [idx, setIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const Scene = HERO_SCENES[idx];
+
+  useEffect(() => {
+    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (paused || reduce) return undefined;
+    const t = setInterval(() => setIdx((i) => (i + 1) % HERO_SCENES.length), 6000);
+    return () => clearInterval(t);
+  }, [paused]);
+
+  return (
+    <div className="vyra-hero rounded-[28px] overflow-hidden relative flex items-center gap-2 px-5 py-6 md:px-10 md:py-8 md:min-h-[300px]"
+      role="region" aria-roledescription="carousel" aria-label="Featured"
+      onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}
+      style={{ background: `linear-gradient(120deg, ${C.primary} 0%, ${C.primaryDark} 100%)`, boxShadow: "0 12px 30px -14px rgba(6,63,80,.45)" }}>
+      {/* depth: soft glow behind the artwork, faint rings, fine dot texture (white tints only) */}
+      <div aria-hidden="true" className="absolute pointer-events-none -right-16 -top-24 w-[420px] h-[420px] rounded-full" style={{ background: "radial-gradient(circle, rgba(255,255,255,.22) 0%, rgba(255,255,255,0) 68%)" }} />
+      <div aria-hidden="true" className="absolute pointer-events-none -left-24 -bottom-32 w-72 h-72 rounded-full" style={{ border: "1px solid rgba(255,255,255,.14)" }} />
+      <div aria-hidden="true" className="absolute pointer-events-none -left-10 -bottom-20 w-52 h-52 rounded-full" style={{ border: "1px solid rgba(255,255,255,.10)" }} />
+      <div aria-hidden="true" className="absolute inset-0 pointer-events-none" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,.10) 1px, transparent 1.2px)", backgroundSize: "18px 18px", maskImage: "linear-gradient(90deg, #000, transparent 60%)", WebkitMaskImage: "linear-gradient(90deg, #000, transparent 60%)" }} />
+      <FloatingLeaves />
+
+      <div className="flex-1 min-w-0 relative z-10 max-w-[560px]">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] md:text-xs font-bold tracking-wide mb-3"
+          style={{ background: "rgba(255,255,255,.18)", color: "#fff", border: "1px solid rgba(255,255,255,.28)", backdropFilter: "blur(6px)" }}>
+          <span className="w-1.5 h-1.5 rounded-full bg-white" aria-hidden="true" /> Fresh Deals for You
+        </span>
+        <h1 className="text-white font-extrabold text-[22px] leading-[1.18] md:text-[40px] md:leading-[1.1] tracking-tight">
+          Groceries, beauty, tech and medicine <span className="text-white/75">— all in one place.</span>
+        </h1>
+        <p className="text-white/85 text-[12.5px] md:text-[15px] leading-relaxed mt-2.5 max-w-md">
+          Thousands of products from {STORES.length} nearby stores, with pharmacist-checked medicines when you need them.
+        </p>
+        <ul className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3.5 list-none p-0">
+          {TRUST.map((t) => (
+            <li key={t.label} className="flex items-center gap-1.5 text-[11.5px] md:text-[13px] font-semibold text-white">
+              <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(255,255,255,.2)" }}>
+                <t.icon size={11} aria-hidden="true" />
+              </span>
+              {t.label}
+            </li>
+          ))}
+        </ul>
+        <div className="flex items-center gap-4 mt-5">
+          <button type="button" onClick={() => nav("categories")}
+            className="vyra-hero-cta inline-flex items-center gap-2 h-11 md:h-12 px-6 md:px-7 rounded-full bg-white font-extrabold text-sm md:text-[15px]"
+            style={{ color: C.primaryDark, boxShadow: "0 6px 16px rgba(0,0,0,.14)" }}>
+            Shop Now <ArrowRight size={16} aria-hidden="true" />
+          </button>
+          <button type="button" onClick={() => nav("offers")} className="text-[13px] font-bold text-white/90 underline underline-offset-4 decoration-white/40 hover:decoration-white">
+            See offers
+          </button>
+        </div>
+      </div>
+
+      <div className="hidden sm:block relative z-10 shrink-0 w-[240px] md:w-[360px] self-center" aria-live="off">
+        <div key={idx} className="vyra-settle drop-shadow-[0_14px_18px_rgba(0,0,0,.18)]"><Scene /></div>
+      </div>
+
+      <div className="absolute z-20 bottom-2.5 right-3 md:bottom-4 md:right-6 flex items-center" role="group" aria-label="Choose slide">
+        {HERO_SCENES.map((_, i) => (
+          <button key={i} type="button" aria-label={`Show slide ${i + 1} of ${HERO_SCENES.length}`} aria-current={i === idx} onClick={() => setIdx(i)} className="p-1.5">
+            <span className="block h-2 rounded-full transition-all duration-300" style={{ width: i === idx ? 22 : 8, background: i === idx ? "#fff" : "rgba(255,255,255,.45)" }} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function Home({ nav }) {
   const { products, activeProducts, categories, storeId, myOrders: orders, recentlyViewed, toast } = useApp();
@@ -60,30 +140,7 @@ export default function Home({ nav }) {
     <Page wide>
       {/* 1 — Promotional banner */}
       <section className="px-4 md:px-0 mb-6">
-        <div className="rounded-3xl overflow-hidden relative flex items-center gap-4 p-5 md:p-8"
-          style={{ background: `linear-gradient(120deg, ${C.primary} 0%, ${C.primaryDark} 100%)` }}>
-          <div className="flex-1 min-w-0 relative z-10">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold mb-2.5"
-              style={{ background: "rgba(255,255,255,.22)", color: "#fff" }}>
-              <Clock size={11} /> Delivery in {store.etaMinutes} minutes
-            </span>
-            <h1 className="text-white font-extrabold text-xl md:text-4xl leading-tight">
-              Groceries, beauty, tech<br className="hidden md:block" /> and medicine — one basket.
-            </h1>
-            <p className="text-white/85 text-xs md:text-base mt-2 max-w-lg">
-              Thousands of products from {STORES.length} nearby stores, with pharmacist-checked medicines when you need them.
-            </p>
-            <div className="flex gap-2 mt-4">
-              <PillButton variant="subtle" onClick={() => nav("categories")}>Start shopping <ArrowRight size={15} /></PillButton>
-              <button onClick={() => nav("offers")} className="px-4 py-3 rounded-full text-sm font-bold" style={{ background: "rgba(255,255,255,.18)", color: "#fff" }}>
-                See offers
-              </button>
-            </div>
-          </div>
-          <div className="hidden sm:block shrink-0 w-44 md:w-80">
-            <HeroArt />
-          </div>
-        </div>
+        <HeroBanner nav={nav} />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mt-3">
           {[

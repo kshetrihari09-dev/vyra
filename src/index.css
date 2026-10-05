@@ -63,3 +63,12 @@ input[type=range] { height: 4px; border-radius: 999px; background: #E5F0EE; }
 .pdp-cta:active:not(:disabled) { transform: scale(.98); }
 .pdp-cta:disabled { cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) { .pdp-opt, .pdp-thumb, .pdp-cta, .pdp-zoom { transition: none; } .pdp-cta:active:not(:disabled) { transform: none; } }
+
+/* Home hero: floating leaves + slider dots */
+@keyframes vyra-float { 0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); } 50% { transform: translateY(-9px) rotate(calc(var(--r, 0deg) + 8deg)); } }
+.vyra-float { animation: vyra-float 7s ease-in-out infinite; animation-delay: var(--d, 0s); transform: rotate(var(--r, 0deg)); }
+.vyra-hero-cta { transition: transform .15s ease, box-shadow .15s ease; }
+.vyra-hero-cta:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(0, 0, 0, .18); }
+.vyra-hero-cta:active { transform: translateY(0) scale(.98); }
+.vyra-hero :focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .vyra-float { animation: none; } .vyra-hero-cta { transition: none; } }
