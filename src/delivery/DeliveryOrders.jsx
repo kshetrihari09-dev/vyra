@@ -161,7 +161,7 @@ export default function DeliveryOrders({ nav }) {
       <PageHeader title="Delivery App" subtitle={`${capacityLine(rider)} · ${vehicleLine(rider)}`} onBack={() => nav("profile")}
         right={<button onClick={toggleAvailability} disabled={busy === "avail"} className="px-3 py-1.5 rounded-full text-xs font-bold"
           style={{ background: rider?.isAvailable ? TONE.ok : C.mint, color: rider?.isAvailable ? "#fff" : C.navy }}>{rider?.isAvailable ? "Available" : "Off duty"}</button>} />
-      <div className="px-4 md:px-0 space-y-3">
+      <div className="px-4 md:px-0 space-y-3 md:max-w-3xl">{/* a readable column on desktop — cards used to stretch the full window width */}
         {loadError && <InlineNotice tone="warn">Couldn't refresh — showing the last loaded deliveries. <button className="underline font-bold" onClick={() => load()}>Retry</button></InlineNotice>}
         {locationIssue && <InlineNotice tone="warn" icon={MapPin}>{LOCATION_MESSAGE} <button type="button" className="underline font-bold" onClick={retryLocation}>Try again</button></InlineNotice>}
         <InlineNotice tone="info" icon={ShieldCheck}>
@@ -242,7 +242,7 @@ function RunCard({ d, busy, history, onAction, onDecline, onOpen, onFail }) {
       </div>
 
       {!history && (
-        <div className="flex flex-wrap gap-2 mt-3">
+        <div className="flex flex-wrap items-center gap-2 mt-3">
           {a.phone && ["accepted", "picked_up"].includes(d.status) && (
             <a href={`tel:${a.phone}`} className="px-3 py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5" style={{ background: C.mint, color: C.primary }}><Phone size={13} /> Call</a>
           )}
@@ -254,7 +254,7 @@ function RunCard({ d, busy, history, onAction, onDecline, onOpen, onFail }) {
           {d.status === "assigned" && <PillButton size="sm" variant="subtle" disabled={busy} onClick={onDecline}>Decline</PillButton>}
           {d.status === "accepted" && <PillButton size="sm" variant="subtle" disabled={busy} onClick={onDecline}>Give back</PillButton>}
           {d.status === "picked_up" && <PillButton size="sm" variant="subtle" disabled={busy} onClick={onFail}>Couldn't deliver</PillButton>}
-          {next && <PillButton size="sm" className="flex-1" disabled={busy} onClick={() => onAction(next.id)}>{next.label}</PillButton>}
+          {next && <PillButton size="sm" className="flex-1 sm:flex-none sm:min-w-[9rem]" disabled={busy} onClick={() => onAction(next.id)}>{next.label}</PillButton>}
         </div>
       )}
     </div>
