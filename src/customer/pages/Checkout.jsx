@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { PinField } from "../../tracking/PinPicker.jsx";
 import { useApp, useC } from "../../store/AppContext.jsx";
 import { Page } from "../layout/CustomerLayout.jsx";
 import { PageHeader, PillButton, InlineNotice, Divider, Badge, Sheet } from "../../components/shared/ui.jsx";
@@ -307,6 +308,7 @@ function Line({ label, value, tone }) {
 }
 
 export function AddressForm({ value, onChange }) {
+  const addressText = [value.line1, value.line2].filter(Boolean).join(", ");
   const C = useC();
   const field = (key, label, placeholder) => (
     <div key={key}>
@@ -362,6 +364,7 @@ export function AddressForm({ value, onChange }) {
       </div>
       {field("phone", "Phone", "+1 555 0190")}
       {field("instructions", "Delivery instructions", "Leave with concierge")}
+      <PinField value={value} addressText={addressText} onChange={(p) => onChange({ ...value, lat: p ? p.lat : null, lng: p ? p.lng : null })} />
     </div>
   );
 }

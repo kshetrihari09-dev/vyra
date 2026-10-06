@@ -5,7 +5,7 @@ import { PageHeader, PillButton, Badge, Divider, InlineNotice, ConfirmDialog } f
 import { OrderTimeline, STATUS_STYLE, stageIndex } from "../components/OrderTimeline.jsx";
 import { AddressCard } from "../components/AddressCard.jsx";
 import { ProductArt } from "../../components/shared/ProductArt.jsx";
-import { Icon, Phone, FileText, Headphones, Copy, ShieldCheck, Bike, X } from "../../components/shared/Icon.jsx";
+import { Icon, Phone, FileText, Headphones, Copy, ShieldCheck, Bike, X, ChevronRight } from "../../components/shared/Icon.jsx";
 import { deliveryApi } from "../../services/api/deliveryApi.js";
 import { paymentsApi } from "../../services/api/paymentsApi.js";
 import { canCancel as orderCanCancel, isPrepaid, paymentStatusOf } from "../../services/orderStatus.js";
@@ -24,23 +24,6 @@ export default function OrderDetails({ nav, params }) {
   const [retrying, setRetrying] = useState(false);
   const [payInfo, setPayInfo] = useState(null);
 
-  /* Live tracking (Phase 7): the rider's last shared position, only while the order is out for delivery. Polled —
-     the server deletes the location trail when the run ends. */
-  const [tracking, setTracking] = useState(null);
-  const trackable = !!order && stageIndex(order.status) >= stageIndex("assigned") && ![ "delivered", "cancelled", "returned" ].includes(order.status);
-  useEffect(() => {
-    if (!trackable) { setTracking(null); return undefined; }
-    let stop = false;
-    const pull = () => deliveryApi.tracking(order.id).then((t) => {
-      if (stop) return;
-      setTracking(t);
-      // The rider moves the order on the server; pull the fresh copy (status, partner, code) into the cache.
-      if (t.orderStatus !== order.status) commerce.refreshOrder(order.id).catch(() => {});
-    }).catch(() => {});
-    pull();
-    const timer = setInterval(pull, 15_000);
-    return () => { stop = true; clearInterval(timer); };
-  }, [order?.id, order?.status, trackable]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!order) return <Page><PageHeader title="Order not found" onBack={() => nav("orders")} /></Page>;
 
   const address = addresses.find((a) => a.id === order.addressId) || (order.shipTo ? { id: "snapshot", label: "Delivery address", ...order.shipTo } : null);
@@ -63,7 +46,6 @@ export default function OrderDetails({ nav, params }) {
     } finally { setRetrying(false); }
   };
   const live = !["delivered", "cancelled", "returned"].includes(order.status);
-  const loc = tracking?.delivery?.location;
 
   return (
     <Page>
@@ -113,15 +95,16 @@ export default function OrderDetails({ nav, params }) {
             <InlineNotice tone="info">Estimated arrival by {timeLabel(order.eta)} · fulfilled by {store.name}</InlineNotice>
           )}
 
-          {loc && (
-            <a href={`https://www.google.com/maps?q=${loc.lat},${loc.lng}`} target="_blank" rel="noreferrer"
-              className="rounded-2xl p-4 flex items-center gap-3" style={{ background: C.white, border: `1px solid ${C.border}` }}>
+          {live && (
+            <button type="button" onClick={() => nav("trackOrder", { orderId: order.id })} aria-label={`Track order ${order.number} on the map`}
+              className="w-full text-left rounded-2xl p-4 flex items-center gap-3" style={{ background: C.white, border: `1px solid ${C.border}` }}>
               <span className="w-11 h-11 rounded-full flex items-center justify-center shrink-0" style={{ background: C.mint }}><Bike size={18} style={{ color: C.primary }} /></span>
               <span className="flex-1 min-w-0">
-                <span className="block font-bold text-sm" style={{ color: C.navy }}>Track your rider</span>
-                <span className="block text-xs" style={{ color: C.muted }}>Last seen {timeLabel(loc.updatedAt)} · tap to open the map</span>
+                <span className="block font-bold text-sm" style={{ color: C.navy }}>Track order on the map</span>
+                <span className="block text-xs truncate" style={{ color: C.muted }}>{order.delivery?.stage?.detail || "Live status and arrival time"}</span>
               </span>
-            </a>
+              <ChevronRight size={18} style={{ color: C.muted }} aria-hidden="true" />
+            </button>
           )}
 
           {/* Timeline */}

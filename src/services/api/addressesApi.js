@@ -4,6 +4,8 @@ const payload = (a) => ({
   label: a.label || "Address", name: a.name, phone: a.phone, line1: a.line1, line2: a.line2 || null, city: a.city || null, zip: a.zip || null,
   provinceId: a.provinceId || null, districtId: a.districtId || null, municipalityId: a.municipalityId || null, ward: a.ward || null,
   instructions: a.instructions || null, isDefault: !!a.isDefault,
+  // Map pin: omitted when the form never touched it (the server then keeps the saved pin); null/null clears it.
+  ...(a.lat !== undefined ? { lat: a.lat ?? null, lng: a.lng ?? null } : {}),
 });
 
 export const addressesApi = {

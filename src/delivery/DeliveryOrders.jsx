@@ -7,6 +7,8 @@ import { deliveryApi, FAILURE_REASONS } from "../services/api/deliveryApi.js";
 import { capacityLine, vehicleLine } from "./riderState.js";
 import { storeById } from "../data/stores.js";
 import { fmt, timeLabel } from "../utils/format.js";
+import ActiveDelivery from "./ActiveDelivery.jsx";
+import { nextAction, sharesLocation } from "./runFlow.js";
 import { TONE } from "../theme.js";
 
 const STATUS = {
@@ -17,10 +19,13 @@ const STATUS = {
   failed: { label: "Couldn't deliver", tone: "danger" },
   cancelled: { label: "Cancelled", tone: "neutral" },
 };
-const LOCATION_EVERY_MS = 10_000;
+const LOCATION_EVERY_MS = 8_000; // the server drops pings closer than 5 s; 8 s keeps the customer's map lively without draining the battery
 /** Codes meaning "this account can't use the rider app" (as opposed to a transient failure). */
 const ACCESS_CODES = ["NOT_A_RIDER", "RIDER_SUSPENDED", "RIDER_NOT_AUTHORIZED", "FORBIDDEN", "UNAUTHENTICATED"];
 const LOCATION_MESSAGE = "Location sharing is unavailable. Please enable location permission to provide live delivery tracking.";
+
+/** Ask for location permission at the moment a rider takes a job — a user action, with an obvious reason — not on page load. */
+const primeLocation = () => { try { navigator.geolocation?.getCurrentPosition(() => {}, () => {}, { maximumAge: 60_000, timeout: 8000 }); } catch { /* unsupported */ } };
 
 /** The rider app. Everything here talks to /api/rider/* — the server decides what a rider may do and only ever
     returns their own deliveries. The customer's handover code is never sent to this screen. */
@@ -39,7 +44,10 @@ export default function DeliveryOrders({ nav }) {
   const [failing, setFailing] = useState(null);      // delivery being reported undeliverable
   const [loadError, setLoadError] = useState("");    // a refresh failed: keep showing the last data, say so
   const [historyState, setHistoryState] = useState({ loading: false, error: "" });
-  const [locationIssue, setLocationIssue] = useState(false);
+  const [locationIssue, setLocationIssue] = useState(null);   // null | "denied" | "unavailable"
+  const [locationRetry, setLocationRetry] = useState(0);
+  const [myPos, setMyPos] = useState(null);                    // this device's last shared fix (drawn on the rider's own map)
+  const [activeId, setActiveId] = useState(null);              // the delivery whose map screen is open
   const loadSeq = useRef(0);
   const acting = useRef(false);
 
@@ -72,24 +80,29 @@ export default function DeliveryOrders({ nav }) {
     return () => clearInterval(t);
   }, [load]);
 
-  /* Share position only while at least one delivery is out. Pings are throttled here and again on the server;
-     when the last run ends the server deletes the trail. */
-  const outIds = mine.filter((d) => d.status === "picked_up").map((d) => d.id).join(",");
+  /* Share position ONLY while the rider has an active delivery (accepted or picked up) — the permission prompt therefore appears
+     when they take a job, never on page load, and the watch is cleared the moment the last run ends. Pings are throttled here
+     and again on the server; when a run ends the server deletes the trail. */
+  const shareIds = mine.filter(sharesLocation).map((d) => d.id).join(",");
   const lastSent = useRef(0);
   useEffect(() => {
-    if (!outIds) { setLocationIssue(false); return undefined; } // nothing out ⇒ no tracking, no message
-    if (!navigator.geolocation) { setLocationIssue(true); return undefined; }
-    const ids = outIds.split(",");
+    if (!shareIds) { setLocationIssue(null); setMyPos(null); lastSent.current = 0; return undefined; } // no active run ⇒ no tracking, no message
+    if (!navigator.geolocation) { setLocationIssue("unavailable"); return undefined; }
+    const ids = shareIds.split(",");
     const watch = navigator.geolocation.watchPosition((pos) => {
-      setLocationIssue(false);
+      setLocationIssue(null);
       if (Date.now() - lastSent.current < LOCATION_EVERY_MS) return;
       lastSent.current = Date.now();
       const point = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
+      setMyPos(point);
       // A ping is best-effort: it must never block the delivery. If the server says this account/run is no longer valid, re-check state.
       ids.forEach((id) => deliveryApi.sendLocation(id, point).catch((err) => { if (ACCESS_CODES.includes(err.code) || err.code === "NOT_TRACKING") load({ quiet: true }); }));
-    }, () => setLocationIssue(true), { enableHighAccuracy: true, maximumAge: 5000 }); // permission denied / unavailable / timeout: tell the rider, don't swallow it
+    }, (err) => setLocationIssue(err?.code === 1 ? "denied" : "unavailable"), { enableHighAccuracy: true, maximumAge: 5000 }); // denied / unavailable: tell the rider, don't swallow it
     return () => navigator.geolocation.clearWatch(watch);
-  }, [outIds, load]);
+  }, [shareIds, load, locationRetry]);
+  // The run ended (delivered / reassigned / cancelled): leave its map screen.
+  useEffect(() => { if (activeId && !loading && !mine.some((d) => d.id === activeId)) setActiveId(null); }, [activeId, mine, loading]);
+  const retryLocation = () => { primeLocation(); setLocationRetry((n) => n + 1); };
 
   const act = async (key, fn, message) => {
     if (acting.current) return; // one action at a time: a fast double-tap must not send the request twice
@@ -98,6 +111,18 @@ export default function DeliveryOrders({ nav }) {
     catch (err) { toast(err.message || "That didn't work", "danger"); await load(); } // reload so buttons reflect what really happened (e.g. someone else got the order)
     finally { acting.current = false; setBusy(null); }
   };
+
+  const runAction = (d, id) => {
+    const calls = {
+      accept: () => { primeLocation(); return act(d.id, async () => { await deliveryApi.accept(d.id); setActiveId(d.id); }, "Accepted"); },
+      arrived: () => act(d.id, () => deliveryApi.arrived(d.id), "Customer's app now shows you at the store"),
+      pickup: () => act(d.id, () => deliveryApi.pickup(d.id), "Picked up"),
+      start: () => act(d.id, () => deliveryApi.start(d.id), "On the way"),
+      complete: () => setHandover(d),
+    };
+    return calls[id]();
+  };
+  const decline = (d) => act(d.id, async () => { await deliveryApi.decline(d.id); setActiveId(null); }, "Handed back to dispatch");
 
   const toggleAvailability = () => act("avail", async () => setRider(await deliveryApi.setAvailability(!rider.isAvailable)));
 
@@ -116,6 +141,19 @@ export default function DeliveryOrders({ nav }) {
     );
   }
 
+  const active = activeId ? mine.find((d) => d.id === activeId) : null;
+  if (active) {
+    return (
+      <>
+        <ActiveDelivery d={active} pos={myPos} busy={busy === active.id} locationIssue={locationIssue} onRetryLocation={retryLocation}
+          onAction={(id) => runAction(active, id)} onClose={() => setActiveId(null)} onFail={() => setFailing(active)} onDecline={() => decline(active)} />
+        <HandoverSheet delivery={handover} onClose={() => setHandover(null)} onDone={async () => { setHandover(null); setActiveId(null); toast("Delivery completed"); await load(); }} />
+        <FailSheet delivery={failing} onClose={() => setFailing(null)}
+          onDone={async (res) => { setFailing(null); setActiveId(null); toast(res.orderOutcome === "returned" ? "Order closed as returned — bring it back to the store" : "Reported. The order goes back for re-dispatch."); await load(); }} />
+      </>
+    );
+  }
+
   const list = tab === "mine" ? mine : tab === "history" ? history : [];
   const atCapacity = rider && rider.activeCount >= rider.capacity; // UX only — the server enforces the limit
   return (
@@ -125,7 +163,7 @@ export default function DeliveryOrders({ nav }) {
           style={{ background: rider?.isAvailable ? TONE.ok : C.mint, color: rider?.isAvailable ? "#fff" : C.navy }}>{rider?.isAvailable ? "Available" : "Off duty"}</button>} />
       <div className="px-4 md:px-0 space-y-3">
         {loadError && <InlineNotice tone="warn">Couldn't refresh — showing the last loaded deliveries. <button className="underline font-bold" onClick={() => load()}>Retry</button></InlineNotice>}
-        {locationIssue && <InlineNotice tone="warn" icon={MapPin}>{LOCATION_MESSAGE}</InlineNotice>}
+        {locationIssue && <InlineNotice tone="warn" icon={MapPin}>{LOCATION_MESSAGE} <button type="button" className="underline font-bold" onClick={retryLocation}>Try again</button></InlineNotice>}
         <InlineNotice tone="info" icon={ShieldCheck}>
           Ask the customer for their 4-digit code at the door. The order can only be completed once the server accepts it.
         </InlineNotice>
@@ -150,7 +188,7 @@ export default function DeliveryOrders({ nav }) {
                   <p className="text-[11px]" style={{ color: C.muted }}>{o.itemCount} items · {fmt(o.total)} · {o.collectCash ? "Collect cash" : "Prepaid"} · {o.area}</p>
                   <p className="text-[11px]" style={{ color: C.muted }}>From {storeById(o.storeId)?.name}</p>
                 </div>
-                <PillButton size="sm" disabled={!!busy || atCapacity} onClick={() => act(o.orderId, () => deliveryApi.claim(o.orderId), `${o.number} is yours`)}>Take it</PillButton>
+                <PillButton size="sm" disabled={!!busy || atCapacity} onClick={() => { primeLocation(); act(o.orderId, async () => { const nd = await deliveryApi.claim(o.orderId); setTab("mine"); setActiveId(nd.id); }, `${o.number} is yours`); }}>Take it</PillButton>
               </div>
             </div>
           ))
@@ -164,10 +202,7 @@ export default function DeliveryOrders({ nav }) {
         )}
 
         {tab !== "available" && list.map((d) => <RunCard key={d.id} d={d} busy={busy === d.id} history={tab === "history"}
-          onAccept={() => act(d.id, () => deliveryApi.accept(d.id), "Accepted")}
-          onDecline={() => act(d.id, () => deliveryApi.decline(d.id), "Handed back to dispatch")}
-          onPickup={() => act(d.id, () => deliveryApi.pickup(d.id), "Out for delivery")}
-          onComplete={() => setHandover(d)} onFail={() => setFailing(d)} />)}
+          onAction={(id) => runAction(d, id)} onDecline={() => decline(d)} onOpen={() => setActiveId(d.id)} onFail={() => setFailing(d)} />)}
       </div>
 
       <HandoverSheet delivery={handover} onClose={() => setHandover(null)} onDone={async () => { setHandover(null); toast("Delivery completed"); await load(); }} />
@@ -177,11 +212,12 @@ export default function DeliveryOrders({ nav }) {
   );
 }
 
-function RunCard({ d, busy, history, onAccept, onDecline, onPickup, onComplete, onFail }) {
+function RunCard({ d, busy, history, onAction, onDecline, onOpen, onFail }) {
   const C = useC();
   const s = STATUS[d.status] || { label: d.status, tone: "neutral" };
   const a = d.order.shipTo || {};
   const address = [a.line1, a.line2, a.city, a.zip].filter(Boolean).join(", ");
+  const next = nextAction(d);
   return (
     <div className="rounded-2xl p-4" style={{ background: C.white, border: `1px solid ${C.border}` }}>
       <div className="flex items-center gap-3 mb-3">
@@ -214,9 +250,11 @@ function RunCard({ d, busy, history, onAccept, onDecline, onPickup, onComplete, 
             <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`} target="_blank" rel="noreferrer"
               className="px-3 py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5" style={{ background: C.mint, color: C.primary }}><Navigation size={13} /> Navigate</a>
           )}
-          {d.status === "assigned" && <><PillButton size="sm" variant="subtle" disabled={busy} onClick={onDecline}>Decline</PillButton><PillButton size="sm" className="flex-1" disabled={busy} onClick={onAccept}>Accept</PillButton></>}
-          {d.status === "accepted" && <><PillButton size="sm" variant="subtle" disabled={busy} onClick={onDecline}>Give back</PillButton><PillButton size="sm" className="flex-1" disabled={busy} onClick={onPickup}>Picked up — start</PillButton></>}
-          {d.status === "picked_up" && <><PillButton size="sm" variant="subtle" disabled={busy} onClick={onFail}>Couldn't deliver</PillButton><PillButton size="sm" className="flex-1" disabled={busy} onClick={onComplete}>Complete delivery</PillButton></>}
+          {next && <PillButton size="sm" variant="outline" onClick={onOpen}><MapPin size={13} aria-hidden="true" /> Map</PillButton>}
+          {d.status === "assigned" && <PillButton size="sm" variant="subtle" disabled={busy} onClick={onDecline}>Decline</PillButton>}
+          {d.status === "accepted" && <PillButton size="sm" variant="subtle" disabled={busy} onClick={onDecline}>Give back</PillButton>}
+          {d.status === "picked_up" && <PillButton size="sm" variant="subtle" disabled={busy} onClick={onFail}>Couldn't deliver</PillButton>}
+          {next && <PillButton size="sm" className="flex-1" disabled={busy} onClick={() => onAction(next.id)}>{next.label}</PillButton>}
         </div>
       )}
     </div>

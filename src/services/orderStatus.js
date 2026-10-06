@@ -103,6 +103,11 @@ export function paymentStatusOf(order) {
 export const PAYMENT_FILTERS = ["Paid", "Payment pending", "Cash due", "Paid (cash)", "Refund pending", "Refunded", "Not collected"];
 
 export function deliveryStatusOf(order) {
+  // Once a partner is on the job the server's derived stage is more precise than the order status (see backend domain/tracking.js).
+  const stage = order.delivery?.stage?.id;
+  if (stage === "partner_assigned") return { label: "Partner assigned", tone: "info" };
+  if (stage === "picked_up") return { label: "Picked up", tone: "info" };
+  if (stage === "on_the_way") return { label: "On the way", tone: "info" };
   switch (sellerStatusOf(order.status).key) {
     case "pending": case "confirmed": case "preparing": return { label: "Not dispatched", tone: "neutral" };
     case "ready": return { label: "Awaiting pickup", tone: "info" };

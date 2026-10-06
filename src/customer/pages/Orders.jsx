@@ -80,7 +80,7 @@ export default function Orders({ nav }) {
                 <PillButton size="sm" variant="outline" className="flex-1" onClick={() => reorder(o)}>
                   <RotateCcw size={13} /> Buy again
                 </PillButton>
-                <PillButton size="sm" variant="subtle" className="flex-1" onClick={() => nav("orderDetails", { orderId: o.id })}>
+                <PillButton size="sm" variant="subtle" className="flex-1" onClick={() => (["delivered", "cancelled", "returned"].includes(o.status) ? nav("orderDetails", { orderId: o.id }) : nav("trackOrder", { orderId: o.id }))}>
                   {["delivered", "cancelled", "returned"].includes(o.status) ? "View details" : "Track order"}
                 </PillButton>
               </div>

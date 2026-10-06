@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useApp } from "../../store/AppContext.jsx";
 import { useShop } from "../hooks/useShopData.js";
 import { useS } from "../components/tokens.js";
 import { Btn, DataTable, EmptyBlock, KeyValue, Notice, PageHeader, Pagination, Panel, Pill, SearchField, Select, Tabs, Thumb, useTable } from "../components/kit.jsx";
 import OrderActions from "../components/OrderActions.jsx";
+import DeliveryPanel from "../components/DeliveryPanel.jsx";
 import { Icon } from "../../components/shared/Icon.jsx";
 import { PAYMENT_FILTERS, PAYMENT_LABELS, SELLER_STATUSES, isPrepaid, sellerStatusOf } from "../../services/orderStatus.js";
 import { storeById } from "../../data/stores.js";
@@ -20,6 +21,15 @@ function OrderList({ nav, params }) {
   const [q, setQ] = useState("");
   const [pay, setPay] = useState("all");
   const [range, setRange] = useState("all");
+
+  // Orders that are packed / with a partner change on the server without this page doing anything: refresh quietly (only the order list).
+  const { commerce } = useApp();
+  const inDelivery = rows.some((r) => ["packed", "assigned", "out_for_delivery"].includes(r.order.status));
+  useEffect(() => {
+    if (!inDelivery) return undefined;
+    const t = setInterval(() => { if (!document.hidden) commerce.reloadOrders().catch(() => {}); }, 20_000);
+    return () => clearInterval(t);
+  }, [inDelivery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const counts = useMemo(() => {
     const c = { all: rows.length, open: rows.filter((r) => OPEN.includes(r.status.key)).length };
@@ -143,6 +153,7 @@ function OrderDetail({ nav, orderId }) {
             <div className="mt-3"><KeyValue rows={[["Delivery status", <Pill tone={row.delivery.tone} dot={false}>{row.delivery.label}</Pill>], ["Method", order.deliveryOption === "slot" ? `Scheduled${order.slot ? ` · ${order.slot}` : ""}` : order.deliveryOption === "express" ? "Express" : "Standard"], order.partner?.name && ["Courier", order.partner.name], ["Dispatched from", store?.name]]} /></div>
             {(order.instructions || order.notes) && <p className="text-xs mt-2" style={{ color: s.muted }}>Customer note: {order.instructions || order.notes}</p>}
           </Panel>
+          {ship && <DeliveryPanel row={row} />}
           <Panel title="Payment">
             <KeyValue rows={[["Method", PAYMENT_LABELS[order.paymentMethod] || order.paymentMethod || "—"], ["Payment status", <Pill tone={row.payment.tone}>{row.payment.label}</Pill>], ["Order status", <Pill tone={row.status.tone}>{row.status.label}</Pill>], [`${row.payment.amountLabel}${row.soleSeller ? "" : " (your items)"}`, fmt(row.soleSeller ? order.totals.total : row.subtotal)]]} />
           </Panel>

@@ -477,6 +477,8 @@ export function AppProvider({ children }) {
       dispatch({ type: "ORDER_UPSERT", order });
       return order;
     },
+    /** Re-fetches only the order list (cheap) — used by screens that watch deliveries progress. */
+    async reloadOrders() { const orders = await ordersApi.list(); dispatch({ type: "ORDERS_LOADED", orders }); return orders; },
     async refreshOrder(id) {
       const order = await ordersApi.get(id);
       dispatch({ type: "ORDER_UPSERT", order });

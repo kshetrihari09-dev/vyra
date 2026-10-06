@@ -72,3 +72,7 @@ input[type=range] { height: 4px; border-radius: 999px; background: #E5F0EE; }
 .vyra-hero-cta:active { transform: translateY(0) scale(.98); }
 .vyra-hero :focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { .vyra-float { animation: none; } .vyra-hero-cta { transition: none; } }
+
+/* Live map: rider marker pulse */
+@keyframes vyra-pulse { 0% { transform: scale(.7); opacity: .45; } 100% { transform: scale(1.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { [aria-label="Delivery partner"] > span:first-child { animation: none !important; } }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { PAYMENT_FILTERS, canCancel, isPaymentCleared, nextSellerAction, paymentStatusOf } from "./orderStatus.js";
+import { PAYMENT_FILTERS, canCancel, deliveryStatusOf, isPaymentCleared, nextSellerAction, paymentStatusOf } from "./orderStatus.js";
 import { sellerSlice } from "../utils/sellerOrders.js";
 
 const order = (o) => ({ id: "o1", status: "placed", paymentMethod: "cod", paymentStatus: "pending", items: [], ...o });
@@ -93,5 +93,22 @@ describe("shared baskets: sole-seller comes from the server's sellerView", () =>
   });
   it("a shop with no line in the order gets no slice", () => {
     assert.equal(sellerSlice(order(base), products, "s9"), null);
+  });
+});
+
+describe("seller delivery status follows the server's derived delivery stage", () => {
+  const o = (status, stage) => ({ status, delivery: stage ? { stage: { id: stage } } : undefined });
+  it("is unchanged where no partner is involved", () => {
+    assert.equal(deliveryStatusOf(o("preparing")).label, "Not dispatched");
+    assert.equal(deliveryStatusOf(o("packed", "preparing")).label, "Awaiting pickup");
+    assert.equal(deliveryStatusOf(o("delivered", "delivered")).label, "Delivered");
+  });
+  it("names each step once a partner is assigned", () => {
+    assert.equal(deliveryStatusOf(o("assigned", "partner_assigned")).label, "Partner assigned");
+    assert.equal(deliveryStatusOf(o("out_for_delivery", "picked_up")).label, "Picked up");
+    assert.equal(deliveryStatusOf(o("out_for_delivery", "on_the_way")).label, "On the way");
+  });
+  it("falls back to the old wording for an order object that carries no stage", () => {
+    assert.equal(deliveryStatusOf(o("out_for_delivery")).label, "In transit");
   });
 });

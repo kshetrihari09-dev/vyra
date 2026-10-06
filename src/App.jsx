@@ -31,6 +31,7 @@ import AdminGate from "./admin/AdminGate.jsx";
 import RiderRestricted from "./delivery/RiderRestricted.jsx";
 import { canUseRiderApp, isAdmin } from "./services/access.js";
 const Pharmacy = lazy(() => import("./pharmacy/Prescriptions.jsx"));
+const TrackOrder = lazy(() => import("./customer/pages/TrackOrder.jsx"));
 const Delivery = lazy(() => import("./delivery/DeliveryOrders.jsx"));
 const POS = lazy(() => import("./pos/POS.jsx"));
 const SellerApp = lazy(() => import("./seller/SellerApp.jsx"));
@@ -90,6 +91,7 @@ function Shell() {
       case "orderConfirmed": return <OrderConfirmed nav={nav} params={params} />;
       case "orders": return <Orders nav={nav} />;
       case "orderDetails": return <OrderDetails nav={nav} params={params} />;
+      case "trackOrder": return <Lazy><TrackOrder nav={nav} params={params} /></Lazy>;
       case "wishlist": return <Wishlist nav={nav} />;
       case "profile": return <Profile nav={nav} />;
       case "addresses": return <Addresses nav={nav} />;

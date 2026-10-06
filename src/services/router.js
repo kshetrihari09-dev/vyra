@@ -21,6 +21,7 @@ export const ROUTES = [
   R("checkout", "/customer/checkout", "customer"),
   R("orderConfirmed", "/customer/orders/:orderId/confirmed", "customer"),
   R("orders", "/customer/orders", "customer"),
+  R("trackOrder", "/customer/orders/:orderId/track", "customer"),
   R("orderDetails", "/customer/orders/:orderId", "customer"),
   R("wishlist", "/customer/wishlist", "customer"),
   R("profile", "/customer/profile", "customer"),

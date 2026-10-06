@@ -10,6 +10,10 @@ export const deliveryApi = {
   claim: async (orderId) => (await api.post(`/rider/orders/${orderId}/claim`)).delivery,
   accept: async (id) => (await api.post(`/rider/deliveries/${id}/accept`)).delivery,
   decline: async (id, reason) => (await api.post(`/rider/deliveries/${id}/decline`, { reason: reason || undefined })).delivery,
+  /** Rider is at the store. Status stays "accepted"; the customer's stage detail changes. */
+  arrived: async (id) => (await api.post(`/rider/deliveries/${id}/arrived`)).delivery,
+  /** After pickup: heading to the customer now. */
+  start: async (id) => (await api.post(`/rider/deliveries/${id}/start`)).delivery,
   pickup: async (id) => (await api.post(`/rider/deliveries/${id}/pickup`)).delivery,
   sendLocation: (id, { lat, lng, accuracy }) => api.post(`/rider/deliveries/${id}/location`, { lat, lng, accuracy: accuracy ?? undefined }),
   /** The code is checked by the server; the rider never has it. Wrong-code errors carry the attempts left in `message`. */
@@ -28,7 +32,11 @@ export const deliveryApi = {
   unassign: async (deliveryId, reason) => (await api.post(`/delivery/deliveries/${deliveryId}/unassign`, { reason: reason || undefined })).delivery,
   resetOtp: (orderId) => api.post(`/delivery/orders/${orderId}/reset-otp`),
 
-  // ---- customer / staff
+  // ---- a shop asks on-duty riders to collect its packed order
+  requestDelivery: (orderId) => api.post(`/orders/${orderId}/request-delivery`),
+  setBranchLocation: async (branchId, { lat, lng }) => (await api.put(`/delivery/branches/${branchId}/location`, { lat, lng })).branch,
+
+  // ---- customer / dispatch / the order's shop
   tracking: async (orderId) => (await api.get(`/orders/${orderId}/tracking`)).tracking,
 };
 

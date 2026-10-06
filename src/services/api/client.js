@@ -122,6 +122,24 @@ export async function request(path, opts = {}) {
   }
 }
 
+/**
+ * Opens a streaming response (Server-Sent Events) with the bearer token — `EventSource` can't send an Authorization header,
+ * and the token must never go in a URL. On a 401 the session is refreshed once and the request replayed, exactly like request().
+ * Returns the raw Response; the caller reads `res.body`. Aborting `signal` ends it.
+ */
+export async function streamRequest(path, { signal } = {}) {
+  const go = () => fetch(`${BASE}${path}`, {
+    method: "GET", credentials: "include", signal, cache: "no-store",
+    headers: { Accept: "text/event-stream", "X-Vyra-Client": "web", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+  }).catch((err) => { if (err?.name === "AbortError") throw err; throw new ApiError(0, "NETWORK_ERROR", "Can't reach the server. Check your connection and try again."); });
+  let res = await go();
+  if (res.status === 401) {
+    try { await refreshSession(); } catch { onSessionLost?.(); return res; }
+    res = await go();
+  }
+  return res;
+}
+
 export const api = {
   get: (path, query) => request(path, { query }),
   post: (path, body, opts) => request(path, { method: "POST", body: body ?? {}, ...opts }),
