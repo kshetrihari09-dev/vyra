@@ -278,13 +278,13 @@ function HandoverSheet({ delivery, onClose, onDone }) {
   const [cash, setCash] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false); // every hook must run on every render — this one used to sit below the early return and crashed the screen when a delivery was opened
   useEffect(() => { setOtp(""); setCash(false); setError(""); }, [delivery?.id]);
   if (!delivery) return null;
   const needsOtp = delivery.order.otpRequired;
   const needsCash = delivery.order.collectCash;
   const ready = (!needsOtp || otp.length === 4) && (!needsCash || cash);
 
-  const inFlight = useRef(false);
   const submit = async () => {
     if (inFlight.current) return; // a double-tap must not submit twice (each wrong code costs an attempt)
     inFlight.current = true; setBusy(true); setError("");
