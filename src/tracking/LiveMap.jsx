@@ -3,6 +3,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { DEFAULT_CENTER, MAP_STYLE, MAP_TOKEN } from "./config.js";
 import { distanceKm } from "./format.js";
+import { ROUTE_KEEP_MS, ROUTE_RETRY_MS, createSequencer, legKey, shouldRequestRoute } from "./liveRoute.js";
 
 /**
  * The delivery map (Mapbox GL). Loaded lazily — this is the only file that imports the library.
@@ -13,12 +14,11 @@ import { distanceKm } from "./format.js";
  * props
  *   pickup, destination, rider : {lat,lng}|null          me : the viewer's own position (rider screen)
  *   phase   "to_pickup" | "to_customer"                  decides what the live route leads to
- *   primary colour for the live route / rider marker     onRoute({distanceM, durationS}|null)  live-leg info for the caller's UI
+ *   primary colour for the live route / rider marker     onRoute({distanceM, durationS, receivedAt}|null)  live-leg info (null = no valid route right now)
+ *   staleRider  the rider's fix has stopped updating: keep the marker, dim it, and do NOT ask Directions for a new route
  *   onError(message)                                     e.g. WebGL unavailable or token rejected
  */
 const RIDER_EASE_MS = 900;
-const ROUTE_MIN_GAP_MS = 20_000;
-const ROUTE_MIN_MOVE_KM = 0.12;
 const FIT_PADDING = { top: 70, bottom: 70, left: 50, right: 50 };
 const reduceMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 const ll = (p) => [p.lng, p.lat];
@@ -30,7 +30,8 @@ async function directions(points, signal) {
   const res = await fetch(`https://api.mapbox.com/directions/v5/mapbox/driving/${coords}?geometries=geojson&overview=full&access_token=${encodeURIComponent(MAP_TOKEN)}`, { signal });
   if (!res.ok) return null;
   const route = (await res.json())?.routes?.[0];
-  return route ? { coords: route.geometry.coordinates, distanceM: route.distance, durationS: route.duration } : null;
+  const geom = route?.geometry?.coordinates;
+  return Array.isArray(geom) && geom.length >= 2 ? { coords: geom, distanceM: route.distance, durationS: route.duration } : null;
 }
 
 const SVG = {
@@ -57,15 +58,17 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
   const anim = useRef({ raf: 0, from: null, to: null, start: 0 });
   const userMoved = useRef(false);
   const lastFit = useRef(0);
-  const live = useRef({ at: 0, from: null, abort: null });
+  const live = useRef({ last: null, abort: null, seq: createSequencer(), timer: 0, inFlight: false, okAt: 0, coords: null });
+  const alive = useRef(true);
   const [recenter, setRecenter] = useState(false);
   const [failed, setFailed] = useState(null);
   const latest = useRef({});
-  latest.current = { pickup, destination, rider, me, phase, onRoute };
+  latest.current = { pickup, destination, rider, me, phase, onRoute, stale: staleRider };
 
   // ---------------------------------------------------------------- create / destroy the map once
   useEffect(() => {
     if (!MAP_TOKEN || !box.current) return undefined;
+    alive.current = true;
     let m;
     try {
       mapboxgl.accessToken = MAP_TOKEN;
@@ -93,14 +96,17 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
       ready.current = true;
       m.resize();
       sync();
+      requestLive(); // the first fix may have arrived before the style finished loading
     });
     m.once("idle", () => m.resize());
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => m.resize()) : null;
     ro?.observe(box.current);
     return () => {
-      ro?.disconnect(); cancelAnimationFrame(anim.current.raf); live.current.abort?.abort();
+      alive.current = false;
+      ro?.disconnect(); cancelAnimationFrame(anim.current.raf);
+      live.current.abort?.abort(); live.current.seq.invalidate(); clearTimeout(live.current.timer); live.current.inFlight = false;
       Object.values(markers.current).forEach((mk) => mk.remove()); markers.current = {};
-      ready.current = false; m.remove(); map.current = null;
+      ready.current = false; m.remove(); map.current = null; // removing the map also removes the route sources/layers
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -133,10 +139,11 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
     const { pickup: a, destination: b, rider: r, me: u } = latest.current;
     const pts = [a, b, r, u].filter(Boolean);
     if (!pts.length) return;
+    const extra = live.current.coords || []; // the road geometry itself, so a winding route is not cropped
     if (!force && Date.now() - lastFit.current < 8000) return;
     lastFit.current = Date.now();
     if (pts.length === 1) { m.easeTo({ center: ll(pts[0]), zoom: 15, duration: reduceMotion() ? 0 : 500 }); return; }
-    const bounds = pts.reduce((bb, p) => bb.extend(ll(p)), new mapboxgl.LngLatBounds(ll(pts[0]), ll(pts[0])));
+    const bounds = extra.reduce((bb, c) => bb.extend(c), pts.reduce((bb, p) => bb.extend(ll(p)), new mapboxgl.LngLatBounds(ll(pts[0]), ll(pts[0]))));
     m.fitBounds(bounds, { padding: FIT_PADDING, maxZoom: 16, duration: reduceMotion() ? 0 : 600 });
   }
 
@@ -171,27 +178,52 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseKey]);
 
-  // The live leg: rider → (store →) customer. Throttled: at most every 20 s AND only after moving ~120 m.
-  useEffect(() => {
-    if (!MAP_TOKEN) return;
-    const m = map.current;
-    const clear = () => { live.current.abort?.abort(); if (ready.current && m) m.getSource("route-live")?.setData(EMPTY); latest.current.onRoute?.(null); live.current.from = null; };
-    if (!rider || !destination) { if (live.current.from) clear(); return; }
+  // The live leg: rider → (store →) customer. WHEN to ask is decided by shouldRequestRoute (liveRoute.js): ~120 m moved or ~18 s while
+  // moving, immediately on a new leg (tracking start, pickup completed, destination changed), never from a frozen GPS fix.
+  // Only the newest request may publish (sequence id + AbortController); a failure never draws a line.
+  function publish(r) {
+    if (!alive.current) return;
+    if (ready.current && map.current) map.current.getSource("route-live")?.setData(line(r?.coords));
+    live.current.coords = r?.coords || null;
+    latest.current.onRoute?.(r ? { distanceM: r.distanceM, durationS: r.durationS, receivedAt: Date.now() } : null);
+  }
+
+  function requestLive() {
     const l = live.current;
-    const moved = l.from ? distanceKm(l.from, rider) : Infinity;
-    if (Date.now() - l.at < ROUTE_MIN_GAP_MS || moved < ROUTE_MIN_MOVE_KM) return;
-    l.at = Date.now(); l.from = rider; l.abort?.abort();
+    const { rider: r, destination: dest, pickup: pk, phase: ph } = latest.current;
+    if (!MAP_TOKEN || !alive.current || !ready.current) return;
+    const key = legKey(ph, pk, dest);
+    if (!r || !key) { // nothing to route (rider gone / no address): drop the old line rather than leave a wrong one
+      l.abort?.abort(); l.seq.invalidate(); clearTimeout(l.timer); l.inFlight = false;
+      if (l.last) { l.last = null; publish(null); }
+      return;
+    }
+    const now = Date.now();
+    if (!shouldRequestRoute({ now, rider: r, key, stale: latest.current.stale, last: l.last, inFlight: l.inFlight })) return;
+
+    const newLeg = !l.last || l.last.key !== key;
+    if (newLeg && l.last) publish(null); // the old line led somewhere else (e.g. the store): never show it as the new leg
+    clearTimeout(l.timer);
+    l.abort?.abort();                    // supersede any request still in flight
     const ac = new AbortController(); l.abort = ac;
-    const path = phase === "to_pickup" && pickup ? [rider, pickup, destination] : [rider, destination];
+    const id = l.seq.next();
+    l.inFlight = true;
+    l.last = { at: now, from: r, key, failed: false };
+    const path = ph === "to_pickup" && pk ? [r, pk, dest] : [r, dest];
     (async () => {
-      try {
-        const r = await directions(path, ac.signal);
-        if (ac.signal.aborted || !ready.current || !map.current) return;
-        map.current.getSource("route-live")?.setData(line(r?.coords));
-        latest.current.onRoute?.(r ? { distanceM: r.distanceM, durationS: r.durationS } : null);
-      } catch { /* aborted or offline */ }
+      let route = null;
+      try { route = await directions(path, ac.signal); } catch { route = null; } // aborted or offline
+      if (ac.signal.aborted || !l.seq.isLatest(id) || !alive.current) return;  // a newer request owns the map now
+      l.inFlight = false;
+      if (route) { l.okAt = Date.now(); publish(route); if (newLeg) fit(false); return; } // fit() itself respects a customer who is exploring the map
+      // Failure: keep the previous route for a while if it is still for this leg, otherwise show nothing ("Calculating route…").
+      l.last = { ...l.last, failed: true };
+      if (newLeg || Date.now() - l.okAt > ROUTE_KEEP_MS) publish(null);
+      l.timer = setTimeout(requestLive, ROUTE_RETRY_MS);
     })();
-  }, [rider?.lat, rider?.lng, destination?.lat, destination?.lng, pickup?.lat, pickup?.lng, phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
+
+  useEffect(() => { requestLive(); }, [rider?.lat, rider?.lng, destination?.lat, destination?.lng, pickup?.lat, pickup?.lng, phase, staleRider]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (failed) return <div className={`flex items-center justify-center text-center text-sm p-6 ${className}`} role="status" style={{ background: "#eef3f5", color: "#4b6470" }}>{failed}</div>;
   return (
