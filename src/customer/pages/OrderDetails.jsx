@@ -140,7 +140,7 @@ export default function OrderDetails({ nav, params }) {
             <p className="font-extrabold text-sm mb-3" style={{ color: C.navy }}>Payment summary</p>
             <Row label="Subtotal" value={fmt(order.totals.subtotal)} />
             {order.totals.discount > 0 && <Row label="Discount" value={`− ${fmt(order.totals.discount)}`} tone={TONE.ok} />}
-            <Row label="Delivery" value={order.totals.deliveryFee === 0 ? "Free" : fmt(order.totals.deliveryFee)} />
+            <Row label={order.delivery?.distanceKm != null ? `Delivery · ${order.delivery.distanceKm} km` : "Delivery"} value={order.totals.deliveryFee === 0 ? "Free" : fmt(order.totals.deliveryFee)} />
             {order.totals.tax > 0 && <Row label="Tax" value={fmt(order.totals.tax)} />}
             <Divider className="my-2.5" />
             <Row label={pay.paid ? "Total paid" : pay.prepaid ? "Total" : "Total due"} value={fmt(order.totals.total)} bold />

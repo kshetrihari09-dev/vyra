@@ -32,6 +32,9 @@ export const deliveryApi = {
   unassign: async (deliveryId, reason) => (await api.post(`/delivery/deliveries/${deliveryId}/unassign`, { reason: reason || undefined })).delivery,
   resetOtp: (orderId) => api.post(`/delivery/orders/${orderId}/reset-otp`),
 
+  /** The published fee schedule (public): base fees per option + the distance tiers. */
+  pricing: async () => api.get("/delivery/pricing"),
+
   // ---- a shop asks on-duty riders to collect its packed order
   requestDelivery: (orderId) => api.post(`/orders/${orderId}/request-delivery`),
   setBranchLocation: async (branchId, { lat, lng }) => (await api.put(`/delivery/branches/${branchId}/location`, { lat, lng })).branch,

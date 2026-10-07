@@ -5,10 +5,11 @@ import { Page } from "../layout/CustomerLayout.jsx";
 import { PageHeader, PillButton, InlineNotice, Divider, Badge, Sheet } from "../../components/shared/ui.jsx";
 import { AddressCard } from "../components/AddressCard.jsx";
 import { ProductArt } from "../../components/shared/ProductArt.jsx";
-import { Icon, Check, Plus, Truck, Clock, FileText, ShieldCheck, CheckCircle2, Package } from "../../components/shared/Icon.jsx";
+import { Icon, Check, Plus, Truck, Clock, FileText, ShieldCheck, CheckCircle2, Package, MapPin } from "../../components/shared/Icon.jsx";
 import { DELIVERY_OPTIONS, PAYMENT_METHODS, storeById } from "../../data/stores.js";
 import { PROVINCES, districtsFor, municipalitiesFor } from "../../data/locations.js";
 import { validateAddress } from "../../utils/validation.js";
+import { distanceLabel, feeBasis, optionFee } from "../../utils/deliveryFee.js";
 import { fmt } from "../../utils/format.js";
 import { TONE } from "../../theme.js";
 
@@ -53,13 +54,13 @@ export default function Checkout({ nav }) {
     let alive = true;
     setPricing(true);
     setPriceError(null);
-    commerce.priceCart(cartLines.map((l) => ({ productId: l.product.id, variantId: l.variantId, qty: l.qty })), { couponCode: coupon, deliveryOptionId: delivery, branch: storeId })
+    commerce.priceCart(cartLines.map((l) => ({ productId: l.product.id, variantId: l.variantId, qty: l.qty })), { couponCode: coupon, deliveryOptionId: delivery, branch: storeId, addressId })
       .then((res) => { if (alive) setPriced(res); })
       .catch((err) => { if (alive) setPriceError(err.message || "Couldn't price your cart"); })
       .finally(() => { if (alive) setPricing(false); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cartLines, coupon, delivery, storeId, priceNonce]);
+  }, [cartLines, coupon, delivery, storeId, addressId, priceNonce]);
   const totals = priced.totals;
   const couponProblem = coupon && priced.totals.couponResult && priced.totals.couponResult.ok === false
     ? (priced.totals.couponResult.reason || "This coupon can't be applied to your order.") : null;
@@ -163,8 +164,10 @@ export default function Checkout({ nav }) {
 
           {step === 1 && (
             <>
+              <DistanceNotice delivery={priced.totals.delivery} storeName={store?.name} />
               {DELIVERY_OPTIONS.map((o) => {
-                const free = o.freeAbove && priced.totals.subtotal - priced.totals.discount >= o.freeAbove;
+                const fee = optionFee(o, priced.totals.delivery, priced.totals.subtotal - priced.totals.discount);
+                const free = fee === 0;
                 return (
                   <button key={o.id} onClick={() => setDelivery(o.id)} className="w-full text-left rounded-2xl p-4 flex items-center gap-3"
                     style={{ background: C.white, border: `1.5px solid ${delivery === o.id ? C.primary : C.border}` }}>
@@ -175,8 +178,8 @@ export default function Checkout({ nav }) {
                       <span className="block font-bold text-sm" style={{ color: C.navy }}>{o.label}</span>
                       <span className="block text-xs" style={{ color: C.muted }}>{o.detail}</span>
                     </span>
-                    <span className="font-bold text-sm shrink-0" style={{ color: free || o.fee === 0 ? TONE.ok : C.navy }}>
-                      {free || o.fee === 0 ? "Free" : fmt(o.fee)}
+                    <span className="font-bold text-sm shrink-0" style={{ color: free ? TONE.ok : C.navy }}>
+                      {free ? "Free" : fmt(fee)}
                     </span>
                   </button>
                 );
@@ -265,7 +268,7 @@ export default function Checkout({ nav }) {
             <p className="font-extrabold text-sm mb-3" style={{ color: C.navy }}>Order summary</p>
             <Line label="Subtotal" value={fmt(totals.subtotal)} />
             {totals.discount > 0 && <Line label="Coupon" value={`− ${fmt(totals.discount)}`} tone={TONE.ok} />}
-            <Line label="Delivery" value={totals.deliveryFee === 0 ? "Free" : fmt(totals.deliveryFee)} />
+            <Line label={`Delivery${distanceLabel(totals.delivery) ? ` · ${distanceLabel(totals.delivery)}` : ""}`} value={totals.deliveryFee === 0 ? "Free" : fmt(totals.deliveryFee)} />
             {totals.tax > 0 && <Line label="Tax" value={fmt(totals.tax)} />}
             <Divider className="my-3" />
             <div className="flex items-center justify-between mb-4">
@@ -305,6 +308,15 @@ function Line({ label, value, tone }) {
       <span className="text-sm font-semibold" style={{ color: tone || C.navy }}>{value}</span>
     </div>
   );
+}
+
+/** How the delivery charge was worked out — the server's answer, in plain words. */
+function DistanceNotice({ delivery, storeName }) {
+  const b = feeBasis(delivery);
+  if (b.kind === "pin") return <InlineNotice tone="info" icon={MapPin}>{`${b.km} km from ${storeName || "the store"} · distance charge ${b.distanceFee === 0 ? "free" : fmt(b.distanceFee)}`}</InlineNotice>;
+  if (b.kind === "no_pin") return <InlineNotice tone="warn" icon={MapPin}>{`This address has no map pin, so a standard distance charge of ${fmt(b.distanceFee)} applies. Add a pin to your address for the exact fee.`}</InlineNotice>;
+  if (b.kind === "out_of_range") return <InlineNotice tone="danger" icon={MapPin}>{`This address is about ${b.km} km away — we deliver within ${b.maxKm} km. Choose a closer address.`}</InlineNotice>;
+  return null;
 }
 
 export function AddressForm({ value, onChange }) {

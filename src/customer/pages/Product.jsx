@@ -16,7 +16,9 @@ import { resolveCategory, categoryPath, hasModule, categoryTreeIds } from "../..
 import { priceOf, defaultVariantId } from "../../utils/pricing.js";
 import { stockState, maxAddable, fefoBatches, daysToExpiry } from "../../utils/inventory.js";
 import { fmt } from "../../utils/format.js";
-import { STORES, DELIVERY_OPTIONS } from "../../data/stores.js";
+import { STORES } from "../../data/stores.js";
+import { useDeliveryPricing } from "../useDeliveryPricing.js";
+import { scheduleNote } from "../../utils/deliveryFee.js";
 import { TONE } from "../../theme.js";
 
 /** Resolves the product from the cache, or fetches it (GET /products/:id) when it isn't cached — e.g. a deep link
@@ -115,12 +117,9 @@ function ProductView({ nav, params, product }) {
   const thumbVariants = product.variants?.length > 1 ? product.variants.slice(0, 6) : [];
   const out = stock.level === "out";
   const minQty = product.moq || 1;
-  const dOpts = Object.fromEntries(DELIVERY_OPTIONS.map((d) => [d.id, d]));
-  const freeAbove = dOpts.standard?.freeAbove;
-  const expressFee = dOpts.express?.fee;
-  const deliveryNote = freeAbove != null && expressFee != null
-    ? `Free over ${fmt(freeAbove)} · express from ${fmt(expressFee)}`
-    : "Free over Rs. 25 · express from Rs. 2.99";
+  // The note comes from the server's published schedule (distance tiers); until it loads there is simply no note rather than a stale claim.
+  const schedule = useDeliveryPricing();
+  const deliveryNote = scheduleNote(schedule, fmt) || "Fee depends on your distance from the store";
   const rxCategory = hasModule(product.categoryId, "prescription", categories);
 
 

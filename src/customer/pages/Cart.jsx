@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { distanceLabel, feeBasis } from "../../utils/deliveryFee.js";
 import { useApp, useC } from "../../store/AppContext.jsx";
 import { Page } from "../layout/CustomerLayout.jsx";
 import { PageHeader, PillButton, EmptyState, InlineNotice, Divider, SectionHeader, Badge } from "../../components/shared/ui.jsx";
@@ -10,7 +11,7 @@ import { fmt } from "../../utils/format.js";
 import { TONE } from "../../theme.js";
 
 export default function Cart({ nav }) {
-  const { cartLines, savedLines, coupon, dispatch, commerce, toast, storeId, products, prescriptions } = useApp();
+  const { cartLines, savedLines, coupon, dispatch, commerce, toast, storeId, products, prescriptions, addresses } = useApp();
   const C = useC();
   const [code, setCode] = useState(coupon || "");
 
@@ -24,18 +25,27 @@ export default function Cart({ nav }) {
   const requiresPrescription = cartLines.some((l) => l.product.flags?.prescriptionRequired);
   const savings = useMemo(() => Math.round(cartLines.reduce((s, l) => s + (l.mrp - l.unitPrice) * l.qty, 0) * 100) / 100, [cartLines]);
 
+  const defaultAddressId = (addresses.find((a) => a.isDefault) || addresses[0])?.id;
+
   /* Stock, prices and coupon validity are priced by the server — this is what decides whether checkout is allowed. */
   const [priced, setPriced] = useState({ issues: [], totals: { subtotal: 0, discount: 0, deliveryFee: 0, tax: 0, total: 0 }, couponResult: null });
   useEffect(() => {
     if (!cartLines.length) return undefined;
     let alive = true;
-    commerce.priceCart(cartLines.map((l) => ({ productId: l.product.id, variantId: l.variantId, qty: l.qty })), { couponCode: coupon, deliveryOptionId: "standard", branch: storeId })
+    commerce.priceCart(cartLines.map((l) => ({ productId: l.product.id, variantId: l.variantId, qty: l.qty })), { couponCode: coupon, deliveryOptionId: "standard", branch: storeId, addressId: defaultAddressId })
       .then((res) => { if (alive) setPriced({ ...res, couponResult: res.totals.couponResult }); })
       .catch(() => {});
     return () => { alive = false; };
-  }, [cartLines, coupon, storeId, commerce]);
+  }, [cartLines, coupon, storeId, commerce, defaultAddressId]);
   const totals = priced.totals;
-  const validation = { ok: priced.issues.length === 0, issues: priced.issues.map((i) => ({ key: `${i.productId}:${i.variantId || ""}`, type: i.type, message: i.message })), requiresPrescription };
+  // Honest wording: an exact fee needs a pin; without one it is an estimate, and with no address at all it is decided at checkout.
+  const basis = feeBasis(totals.delivery);
+  const deliveryText = basis.kind === "pin" ? (totals.deliveryFee === 0 ? "Free" : fmt(totals.deliveryFee))
+    : addresses.length === 0 ? "At checkout" : `Est. ${fmt(totals.deliveryFee)}`;
+  // "Out of range" concerns the DEFAULT address only (used here to show a fee). The shopper may pick another address at
+  // checkout, so it must not block the cart — checkout enforces it for the address actually chosen.
+  const blocking = priced.issues.filter((i) => i.type !== "out_of_range");
+  const validation = { ok: blocking.length === 0, issues: blocking.map((i) => ({ key: `${i.productId}:${i.variantId || ""}`, type: i.type, message: i.message })), requiresPrescription };
 
   const suggestions = useMemo(() => {
     const inCart = new Set(cartLines.map((l) => l.product.id));
@@ -122,7 +132,7 @@ export default function Cart({ nav }) {
             <Row label={`Subtotal (${cartLines.reduce((s, l) => s + l.qty, 0)} items)`} value={fmt(totals.subtotal)} />
             {savings > 0 && <Row label="Product savings" value={`− ${fmt(savings)}`} tone={TONE.ok} />}
             {totals.discount > 0 && <Row label="Coupon discount" value={`− ${fmt(totals.discount)}`} tone={TONE.ok} />}
-            <Row label="Delivery" value={totals.deliveryFee === 0 ? "Free" : fmt(totals.deliveryFee)} />
+            <Row label={`Delivery${distanceLabel(totals.delivery) ? ` · ${distanceLabel(totals.delivery)}` : ""}`} value={deliveryText} />
             {totals.tax > 0 && <Row label="Tax" value={fmt(totals.tax)} />}
             <Divider className="my-3" />
             <div className="flex items-center justify-between">
