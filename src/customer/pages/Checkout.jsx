@@ -8,7 +8,8 @@ import { ProductArt } from "../../components/shared/ProductArt.jsx";
 import { Icon, Check, Plus, Truck, Clock, FileText, ShieldCheck, CheckCircle2, Package, MapPin } from "../../components/shared/Icon.jsx";
 import { DELIVERY_OPTIONS, PAYMENT_METHODS, storeById } from "../../data/stores.js";
 import { PROVINCES, districtsFor, municipalitiesFor } from "../../data/locations.js";
-import { validateAddress } from "../../utils/validation.js";
+import { validateAddress, normalizePhone } from "../../utils/validation.js";
+import { PhoneVerify } from "../../components/shared/PhoneVerify.jsx";
 import { distanceLabel, feeBasis, optionFee } from "../../utils/deliveryFee.js";
 import { fmt } from "../../utils/format.js";
 import { TONE } from "../../theme.js";
@@ -32,6 +33,7 @@ export default function Checkout({ nav }) {
   const [instructions, setInstructions] = useState("");
   const [placing, setPlacing] = useState(false);
   const [newAddr, setNewAddr] = useState(null);
+  const [verifyingAddr, setVerifyingAddr] = useState(false); // confirming a delivery number that isn't the login number
   const placingRef = useRef(false);
 
   const rxStatus = useMemo(() => {
@@ -78,6 +80,18 @@ export default function Checkout({ nav }) {
     );
   }
 
+  const saveNewAddr = async () => {
+    const v = validateAddress(newAddr, { requireNepal: true });
+    if (!v.ok) { toast(Object.values(v.errors)[0], "danger"); return; }
+    try {
+      const saved = await commerce.createAddress(newAddr);
+      setSelectedAddressId(saved.id); setNewAddr(null); setVerifyingAddr(false); toast("Address saved");
+    } catch (err) {
+      if (err.code === "PHONE_NOT_VERIFIED") setVerifyingAddr(true); // the server wants this number confirmed first
+      else toast(err.message || "Couldn't save the address", "danger");
+    }
+  };
+
   const placeOrder = async () => {
     if (placingRef.current) return;
     if (!validation.ok) { toast(validation.issues[0]?.message || priceError || couponProblem || "Your cart needs attention", "danger"); return; }
@@ -95,7 +109,8 @@ export default function Checkout({ nav }) {
       dispatch({ type: "AUDIT", entry: { actor: session.user.name, action: "Order placed", detail: `${order.number} · ${fmt(totals.total)}` } });
       nav("orderConfirmed", { orderId: order.id });
     } catch (err) {
-      toast(err.message || "Couldn't place your order", "danger");
+      if (err.code === "PHONE_NOT_VERIFIED") { toast("This address's phone number isn't confirmed yet. Add the address again (or edit it under Profile › Addresses) and confirm the number with a code.", "danger"); setStep(0); }
+      else toast(err.message || "Couldn't place your order", "danger");
     } finally {
       placingRef.current = false;
       setPlacing(false);
@@ -283,18 +298,11 @@ export default function Checkout({ nav }) {
         </aside>
       </div>
 
-      <Sheet open={!!newAddr} onClose={() => setNewAddr(null)} title="Add address"
-        footer={<PillButton full onClick={async () => {
-          const v = validateAddress(newAddr, { requireNepal: true });
-          if (!v.ok) { toast(Object.values(v.errors)[0], "danger"); return; }
-          try {
-            const saved = await commerce.createAddress(newAddr);
-            setSelectedAddressId(saved.id); setNewAddr(null); toast("Address saved");
-          } catch (err) {
-            toast(err.message || "Couldn't save the address", "danger");
-          }
-        }}>Save address</PillButton>}>
-        {newAddr && <AddressForm value={newAddr} onChange={setNewAddr} />}
+      <Sheet open={!!newAddr} onClose={() => { setNewAddr(null); setVerifyingAddr(false); }} title={verifyingAddr ? "Confirm phone number" : "Add address"}
+        footer={verifyingAddr ? null : <PillButton full onClick={saveNewAddr}>Save address</PillButton>}>
+        {newAddr && (verifyingAddr
+          ? <PhoneVerify phone={newAddr.phone} onVerified={() => { setVerifyingAddr(false); saveNewAddr(); }} onCancel={() => setVerifyingAddr(false)} />
+          : <AddressForm value={newAddr} onChange={setNewAddr} />)}
       </Sheet>
     </Page>
   );
@@ -320,6 +328,10 @@ function DistanceNotice({ delivery, storeName }) {
 }
 
 export function AddressForm({ value, onChange }) {
+  const { session } = useApp();
+  const loginPhone = normalizePhone(session?.user?.phone);
+  const phoneDigits = normalizePhone(value.phone);
+  const customPhone = !!phoneDigits && !!loginPhone && phoneDigits !== loginPhone;
   const addressText = [value.line1, value.line2].filter(Boolean).join(", ");
   const C = useC();
   const field = (key, label, placeholder) => (
@@ -374,7 +386,14 @@ export function AddressForm({ value, onChange }) {
         {field("city", "City (legacy)", "Metro City")}
         {field("zip", "Postcode (optional)", "10245")}
       </div>
-      {field("phone", "Phone", "+1 555 0190")}
+      {field("phone", "Phone (for the rider)", "98XXXXXXXX")}
+      {loginPhone && (
+        <p className="text-[11px] -mt-1.5" style={{ color: C.muted }}>
+          {customPhone ? (
+            <>A different number from your login. We'll text it a code to confirm when you save. <button type="button" className="font-bold underline" style={{ color: C.primary }} onClick={() => onChange({ ...value, phone: session.user.phone })}>Use my login number</button></>
+          ) : "Your login number: no confirmation needed."}
+        </p>
+      )}
       {field("instructions", "Delivery instructions", "Leave with concierge")}
       <PinField value={value} addressText={addressText} onChange={(p) => onChange({ ...value, lat: p ? p.lat : null, lng: p ? p.lng : null })} />
     </div>

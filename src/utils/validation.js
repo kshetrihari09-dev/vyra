@@ -3,6 +3,8 @@ import { hasModule } from "../data/categories.js";
 
 export const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v || "").trim());
 export const isPhone = (v) => /^[+\d][\d\s-]{7,16}$/.test(String(v || "").trim());
+/** "+977 98-1234 5678" → "9812345678" (same rule as the server's normalizePhone). */
+export const normalizePhone = (v) => { let d = String(v || "").replace(/\D/g, ""); if (d.length === 13 && d.startsWith("977")) d = d.slice(3); return d; };
 export const isOtp = (v) => /^\d{4}$/.test(String(v || "").trim());
 
 /** Nepal mobile numbers: 10 digits starting 96/97/98 (covers all major carriers). */
@@ -64,7 +66,8 @@ export function validateAddress(a, { requireNepal = false } = {}) {
     if (!a.city?.trim()) errors.city = "Enter a city";
     if (!a.zip?.trim()) errors.zip = "Enter a postcode";
   }
-  if (!isPhone(a.phone)) errors.phone = "Enter a valid phone number";
+  if (requireNepal) { if (!/^9[678]\d{8}$/.test(normalizePhone(a.phone))) errors.phone = "Enter a valid mobile number (98XXXXXXXX)"; }
+  else if (!isPhone(a.phone)) errors.phone = "Enter a valid phone number";
   return { ok: Object.keys(errors).length === 0, errors };
 }
 

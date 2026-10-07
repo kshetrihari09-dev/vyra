@@ -14,4 +14,7 @@ export const addressesApi = {
   update: async (a) => (await api.put(`/addresses/${a.id}`, payload(a))).address,
   setDefault: async (id) => (await api.post(`/addresses/${id}/default`, {})).address,
   remove: (id) => api.delete(`/addresses/${id}`),
+  /** A delivery phone that isn't the login number must be confirmed: → { verified:true } (already trusted) or { challengeId, expiresInSeconds, devHint? }. */
+  startPhone: (phone) => api.post("/addresses/phone/start", { phone }),
+  verifyPhone: ({ challengeId, code }) => api.post("/addresses/phone/verify", { challengeId, code }),
 };
