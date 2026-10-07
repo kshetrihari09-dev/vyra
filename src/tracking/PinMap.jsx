@@ -33,5 +33,5 @@ export default function PinMap({ point, focus, onPoint, className = "" }) {
     if (map.current && focus) map.current.easeTo({ center: [focus.lng, focus.lat], zoom: Math.max(map.current.getZoom(), 16), duration: 500 });
   }, [focus?.n]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return <div ref={box} role="application" aria-label="Map: tap or drag the pin to your door" className={className} />;
+  return <div ref={box} role="application" aria-label="Map: tap or drag the pin to your door" className={className} style={{ width: "100%" }} />;
 }

@@ -94,6 +94,7 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
       m.resize();
       sync();
     });
+    m.once("idle", () => m.resize());
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => m.resize()) : null;
     ro?.observe(box.current);
     return () => {
@@ -195,10 +196,10 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
   if (failed) return <div className={`flex items-center justify-center text-center text-sm p-6 ${className}`} role="status" style={{ background: "#eef3f5", color: "#4b6470" }}>{failed}</div>;
   return (
     <div className={`relative ${className}`}>
-      <div ref={box} role="application" aria-label="Delivery map" className="absolute inset-0" />
+      <div ref={box} role="application" aria-label="Delivery map" style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, width: "100%", height: "100%" }} />
       {recenter && (
         <button type="button" onClick={() => { userMoved.current = false; setRecenter(false); fit(true); }}
-          className="absolute left-3 bottom-3 z-10 px-3 h-9 rounded-full text-xs font-bold bg-white shadow-md" style={{ color: "#0b3a4a" }}>
+          className="absolute right-3 bottom-8 z-10 px-3 h-9 rounded-full text-xs font-bold bg-white shadow-md" style={{ color: "#0b3a4a" }}>
           Recenter
         </button>
       )}
