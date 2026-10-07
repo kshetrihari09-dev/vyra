@@ -3,6 +3,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { DEFAULT_CENTER, MAP_STYLE, MAP_TOKEN } from "./config.js";
 import { distanceKm } from "./format.js";
+import { NAV_CAMERA_MS, NAV_MIN_ZOOM, NAV_ZOOM, continuousBearing, createHeadingTracker, navPadding } from "./navCamera.js";
 import { ROUTE_KEEP_MS, ROUTE_RETRY_MS, createSequencer, legKey, shouldRequestRoute } from "./liveRoute.js";
 
 /**
@@ -17,6 +18,10 @@ import { ROUTE_KEEP_MS, ROUTE_RETRY_MS, createSequencer, legKey, shouldRequestRo
  *   primary colour for the live route / rider marker     onRoute({distanceM, durationS, receivedAt}|null)  live-leg info (null = no valid route right now)
  *   staleRider  the rider's fix has stopped updating: keep the marker, dim it, and do NOT ask Directions for a new route
  *   onError(message)                                     e.g. WebGL unavailable or token rejected
+ *   navigation  RIDER SCREEN ONLY. Heading-up navigation camera: the map follows `rider`, rotates so the direction of travel is at the top,
+ *               and keeps the rider in the lower-middle of the screen. A manual pan/rotate pauses following until "Recenter" is pressed.
+ *               Off by default, so the customer's tracking map stays north-up. Rotation is a local camera operation only — it never
+ *               triggers a route calculation (the route effects below don't depend on bearing). `rider` may carry {heading, speed, accuracy}.
  */
 const RIDER_EASE_MS = 900;
 const FIT_PADDING = { top: 70, bottom: 70, left: 50, right: 50 };
@@ -40,17 +45,18 @@ const SVG = {
   rider: '<circle cx="6.5" cy="16.5" r="3" fill="none" stroke="#fff" stroke-width="1.8"/><circle cx="17.5" cy="16.5" r="3" fill="none" stroke="#fff" stroke-width="1.8"/><path d="M6.5 16.5L10 9h4l3.5 7.5M10 9L8.5 6.5H7M14 9h2.5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
   me: '<circle cx="12" cy="12" r="4" fill="#fff"/>',
 };
-function pin(kind, color, label, pulse = false) {
+function pin(kind, color, label, pulse = false, arrow = false) {
   const el = document.createElement("div");
   el.setAttribute("role", "img"); el.setAttribute("aria-label", label); el.title = label;
   el.style.cssText = "position:relative;width:38px;height:38px;";
   el.innerHTML = `${pulse ? `<span style="position:absolute;inset:-6px;border-radius:50%;background:${color};opacity:.25;animation:vyra-pulse 1.8s ease-out infinite"></span>` : ""}
     <span style="position:absolute;inset:0;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center">
-      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">${SVG[kind]}</svg></span>`;
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">${SVG[kind]}</svg></span>
+    ${arrow ? `<span data-heading style="position:absolute;inset:-12px;pointer-events:none;display:none"><svg viewBox="0 0 62 62" width="62" height="62" aria-hidden="true"><path d="M31 1l8 12H23z" fill="${color}" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg></span>` : ""}`;
   return el;
 }
 
-export default function LiveMap({ pickup, destination, rider, me, phase = "to_customer", primary = "#0FAF8F", onRoute, onError, className = "", staleRider = false }) {
+export default function LiveMap({ pickup, destination, rider, me, phase = "to_customer", primary = "#0FAF8F", onRoute, onError, className = "", staleRider = false, navigation = false }) {
   const box = useRef(null);
   const map = useRef(null);
   const ready = useRef(false);
@@ -58,12 +64,13 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
   const anim = useRef({ raf: 0, from: null, to: null, start: 0 });
   const userMoved = useRef(false);
   const lastFit = useRef(0);
+  const nav = useRef({ tracker: createHeadingTracker(), started: false, heading: null }); // navigation camera state (never triggers renders)
   const live = useRef({ last: null, abort: null, seq: createSequencer(), timer: 0, inFlight: false, okAt: 0, coords: null });
   const alive = useRef(true);
   const [recenter, setRecenter] = useState(false);
   const [failed, setFailed] = useState(null);
   const latest = useRef({});
-  latest.current = { pickup, destination, rider, me, phase, onRoute, stale: staleRider };
+  latest.current = { pickup, destination, rider, me, phase, onRoute, stale: staleRider, navigation };
 
   // ---------------------------------------------------------------- create / destroy the map once
   useEffect(() => {
@@ -85,8 +92,12 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
       const status = e?.error?.status;
       if (status === 401 || status === 403) { const msg = "The map key was rejected."; setFailed(msg); onError?.(msg); }
     });
-    m.on("dragstart", (e) => { if (e.originalEvent) { userMoved.current = true; setRecenter(true); } });
-    m.on("zoomstart", (e) => { if (e.originalEvent) { userMoved.current = true; setRecenter(true); } });
+    const pause = (e) => { if (e.originalEvent) { userMoved.current = true; setRecenter(true); } }; // our own easeTo calls carry no originalEvent
+    m.on("dragstart", pause);
+    m.on("zoomstart", (e) => { if (!latest.current.navigation) pause(e); }); // navigation keeps the rider's chosen zoom instead of pausing on it
+    m.on("rotatestart", (e) => { if (latest.current.navigation) pause(e); });
+    m.on("pitchstart", (e) => { if (latest.current.navigation) pause(e); });
+    m.on("rotate", () => paintHeading()); // keep the marker's arrow pointing the real way while the map turns (or if the rider rotates it by hand)
     m.on("load", () => {
       for (const [id, color, width, dash] of [["route-base", "#8aa0ab", 4, [1.5, 1.5]], ["route-live", primary, 5, null]]) {
         m.addSource(id, { type: "geojson", data: EMPTY });
@@ -135,6 +146,7 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
 
   function fit(force = false) {
     const m = map.current; if (!m || !ready.current) return;
+    if (latest.current.navigation && latest.current.rider) return; // the navigation camera owns the view (fitBounds would also reset the bearing to north)
     if (userMoved.current && !force) return;
     const { pickup: a, destination: b, rider: r, me: u } = latest.current;
     const pts = [a, b, r, u].filter(Boolean);
@@ -154,10 +166,39 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
     setMarker("dest", b, () => pin("home", "#e8590c", "Delivery address"));
     setMarker("me", u, () => pin("me", "#2563eb", "Your location"));
     const had = !!markers.current.rider;
-    setMarker("rider", r, () => pin("rider", primary, "Delivery partner", true));
+    setMarker("rider", r, () => pin("rider", primary, "Delivery partner", true, latest.current.navigation));
     if (r && had) easeRider(r);
     if (markers.current.rider) markers.current.rider.getElement().style.opacity = staleRider ? 0.55 : 1;
-    fit(!had && !!r);
+    if (latest.current.navigation && r) followRider(); else fit(!had && !!r);
+  }
+
+  // ---------------------------------------------------------------- navigation camera (rider screen only)
+  // The marker is viewport-aligned (it never turns with the map), so once the map is heading-up its arrow simply points to the top of
+  // the screen. The arrow is rotated by (heading − map bearing) so it stays truthful if the map is not aligned (e.g. paused/rotated).
+  function paintHeading() {
+    const m = map.current; const arrow = markers.current.rider?.getElement().querySelector("[data-heading]");
+    if (!m || !arrow) return;
+    const h = nav.current.heading;
+    arrow.style.display = h == null ? "none" : "block";
+    if (h != null) arrow.style.transform = `rotate(${h - m.getBearing()}deg)`;
+  }
+
+  /** Follow the rider: centre on them (offset toward the lower-middle), and turn the map to the stable travel heading. `force` = recenter. */
+  function followRider(force = false) {
+    const m = map.current; const { rider: r, navigation } = latest.current;
+    if (!m || !ready.current || !navigation || !r || !box.current) return;
+    const { heading } = nav.current.tracker.update(r); // keep learning the heading even while paused, so Recenter has a fresh one
+    nav.current.heading = heading;
+    if (userMoved.current && !force) { paintHeading(); return; } // the rider is looking around: never fight their hand
+    const first = !nav.current.started;
+    const opts = { center: ll(r), padding: navPadding(box.current.clientHeight), duration: first || reduceMotion() ? 0 : NAV_CAMERA_MS, easing: (t) => 1 - (1 - t) ** 3 };
+    // Restate the bearing on every move once known: an easeTo that omits it would freeze a rotation that is still in progress.
+    if (heading != null) opts.bearing = continuousBearing(m.getBearing(), heading);
+    if (first) opts.zoom = NAV_ZOOM;
+    else if (force && m.getZoom() < NAV_MIN_ZOOM) opts.zoom = NAV_MIN_ZOOM;
+    nav.current.started = true;
+    m.easeTo(opts);
+    paintHeading();
   }
 
   useEffect(() => { sync(); }, [pickup?.lat, pickup?.lng, destination?.lat, destination?.lng, rider?.lat, rider?.lng, me?.lat, me?.lng, staleRider]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -230,7 +271,7 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
     <div className={`relative ${className}`}>
       <div ref={box} role="application" aria-label="Delivery map" style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, width: "100%", height: "100%" }} />
       {recenter && (
-        <button type="button" onClick={() => { userMoved.current = false; setRecenter(false); fit(true); }}
+        <button type="button" onClick={() => { userMoved.current = false; setRecenter(false); if (latest.current.navigation && latest.current.rider) followRider(true); else fit(true); }}
           className="absolute right-3 bottom-8 z-10 px-3 h-9 rounded-full text-xs font-bold bg-white shadow-md" style={{ color: "#0b3a4a" }}>
           Recenter
         </button>

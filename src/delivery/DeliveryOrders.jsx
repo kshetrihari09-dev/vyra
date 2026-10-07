@@ -19,6 +19,7 @@ const STATUS = {
   failed: { label: "Couldn't deliver", tone: "danger" },
   cancelled: { label: "Cancelled", tone: "neutral" },
 };
+const LOCAL_FIX_EVERY_MS = 1_500; // how often the rider's OWN map (heading-up navigation camera) takes a fresh fix; the server ping stays on the slower cadence below
 const LOCATION_EVERY_MS = 8_000; // the server drops pings closer than 5 s; 8 s keeps the customer's map lively without draining the battery
 /** Codes meaning "this account can't use the rider app" (as opposed to a transient failure). */
 const ACCESS_CODES = ["NOT_A_RIDER", "RIDER_SUSPENDED", "RIDER_NOT_AUTHORIZED", "FORBIDDEN", "UNAUTHENTICATED"];
@@ -85,16 +86,20 @@ export default function DeliveryOrders({ nav }) {
      and again on the server; when a run ends the server deletes the trail. */
   const shareIds = mine.filter(sharesLocation).map((d) => d.id).join(",");
   const lastSent = useRef(0);
+  const lastLocal = useRef(0);
   useEffect(() => {
-    if (!shareIds) { setLocationIssue(null); setMyPos(null); lastSent.current = 0; return undefined; } // no active run ⇒ no tracking, no message
+    if (!shareIds) { setLocationIssue(null); setMyPos(null); lastSent.current = 0; lastLocal.current = 0; return undefined; } // no active run ⇒ no tracking, no message
     if (!navigator.geolocation) { setLocationIssue("unavailable"); return undefined; }
     const ids = shareIds.split(",");
     const watch = navigator.geolocation.watchPosition((pos) => {
       setLocationIssue(null);
-      if (Date.now() - lastSent.current < LOCATION_EVERY_MS) return;
-      lastSent.current = Date.now();
+      const now = Date.now();
       const point = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy };
-      setMyPos(point);
+      // The rider's own map gets fixes more often than the server does, plus heading/speed (device-reported, local only — never sent) so the
+      // map can turn with the rider. Directions is NOT re-requested for these: shouldRequestRoute still gates that by distance/time.
+      if (now - lastLocal.current >= LOCAL_FIX_EVERY_MS) { lastLocal.current = now; setMyPos({ ...point, heading: pos.coords.heading, speed: pos.coords.speed }); }
+      if (now - lastSent.current < LOCATION_EVERY_MS) return;
+      lastSent.current = now;
       // A ping is best-effort: it must never block the delivery. If the server says this account/run is no longer valid, re-check state.
       ids.forEach((id) => deliveryApi.sendLocation(id, point).catch((err) => { if (ACCESS_CODES.includes(err.code) || err.code === "NOT_TRACKING") load({ quiet: true }); }));
     }, (err) => setLocationIssue(err?.code === 1 ? "denied" : "unavailable"), { enableHighAccuracy: true, maximumAge: 5000 }); // denied / unavailable: tell the rider, don't swallow it

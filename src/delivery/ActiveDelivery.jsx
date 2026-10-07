@@ -60,7 +60,7 @@ export default function ActiveDelivery({ d, pos, busy, locationIssue, onRetryLoc
           {pickup || destination ? (
             <div className="relative rounded-3xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
               <TrackingMap className="h-[44vh] min-h-[280px] md:h-[calc(100vh-190px)] md:min-h-[460px] md:max-h-[640px]"
-                pickup={pickup} destination={destination} rider={me} phase={target === "store" ? "to_pickup" : "to_customer"} onRoute={setRoute} />
+                pickup={pickup} destination={destination} rider={me} phase={target === "store" ? "to_pickup" : "to_customer"} onRoute={setRoute} navigation />
               {approximate && <span className="absolute left-3 top-3 z-10 text-[11px] font-bold px-2.5 py-1 rounded-full bg-white shadow" style={{ color: C.navy }}>Approximate delivery pin</span>}
             </div>
           ) : (
