@@ -3,7 +3,7 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { DEFAULT_CENTER, MAP_STYLE, MAP_TOKEN } from "./config.js";
 import { distanceKm } from "./format.js";
-import { NAV_CAMERA_MS, NAV_MIN_ZOOM, NAV_ZOOM, continuousBearing, createHeadingTracker, navPadding } from "./navCamera.js";
+import { NAV_CAMERA_MS, NAV_MIN_ZOOM, NAV_ZOOM, continuousBearing, createHeadingTracker, navPadding, routeHeading } from "./navCamera.js";
 import { ROUTE_KEEP_MS, ROUTE_RETRY_MS, createSequencer, legKey, shouldRequestRoute } from "./liveRoute.js";
 
 /**
@@ -187,7 +187,7 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
   function followRider(force = false) {
     const m = map.current; const { rider: r, navigation } = latest.current;
     if (!m || !ready.current || !navigation || !r || !box.current) return;
-    const { heading } = nav.current.tracker.update(r); // keep learning the heading even while paused, so Recenter has a fresh one
+    const { heading } = nav.current.tracker.update(r, routeHeading(live.current.coords, r)); // road ahead (already in memory, no request) refines the GPS heading; keep learning the heading even while paused, so Recenter has a fresh one
     nav.current.heading = heading;
     if (userMoved.current && !force) { paintHeading(); return; } // the rider is looking around: never fight their hand
     const first = !nav.current.started;
