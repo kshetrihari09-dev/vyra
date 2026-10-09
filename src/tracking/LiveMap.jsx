@@ -4,6 +4,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { DEFAULT_CENTER, MAP_STYLE, MAP_TOKEN } from "./config.js";
 import { distanceKm } from "./format.js";
 import { NAV_CAMERA_MS, NAV_MIN_ZOOM, NAV_ZOOM, continuousBearing, createHeadingTracker, navPadding, routeHeading } from "./navCamera.js";
+import { FIT_MAX_ZOOM, SINGLE_POINT_ZOOM, WORLD_ZOOM, clampPadding, cleanCoords, cleanPoint, estimateFitZoom, initialView, spanKm } from "./framing.js";
 import { ROUTE_KEEP_MS, ROUTE_RETRY_MS, createSequencer, legKey, shouldRequestRoute } from "./liveRoute.js";
 
 /**
@@ -24,7 +25,6 @@ import { ROUTE_KEEP_MS, ROUTE_RETRY_MS, createSequencer, legKey, shouldRequestRo
  *               triggers a route calculation (the route effects below don't depend on bearing). `rider` may carry {heading, speed, accuracy}.
  */
 const RIDER_EASE_MS = 900;
-const FIT_PADDING = { top: 70, bottom: 70, left: 50, right: 50 };
 const reduceMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 const ll = (p) => [p.lng, p.lat];
 const EMPTY = { type: "FeatureCollection", features: [] };
@@ -64,13 +64,16 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
   const anim = useRef({ raf: 0, from: null, to: null, start: 0 });
   const userMoved = useRef(false);
   const lastFit = useRef(0);
+  const frame = useRef({ size: null, warned: false }); // the container size the current framing was computed for; whether we already explained a world-scale view
   const nav = useRef({ tracker: createHeadingTracker(), started: false, heading: null }); // navigation camera state (never triggers renders)
   const live = useRef({ last: null, abort: null, seq: createSequencer(), timer: 0, inFlight: false, okAt: 0, coords: null });
   const alive = useRef(true);
   const [recenter, setRecenter] = useState(false);
   const [failed, setFailed] = useState(null);
   const latest = useRef({});
-  latest.current = { pickup, destination, rider, me, phase, onRoute, stale: staleRider, navigation };
+  // Every coordinate is validated ONCE, here, before anything touches Mapbox (see framing.js: null silently becomes 0,0 and undefined throws).
+  const pk = cleanPoint(pickup); const dst = cleanPoint(destination); const rd = cleanPoint(rider); const mePt = cleanPoint(me);
+  latest.current = { pickup: pk, destination: dst, rider: rd, me: mePt, phase, onRoute, stale: staleRider, navigation };
 
   // ---------------------------------------------------------------- create / destroy the map once
   useEffect(() => {
@@ -79,8 +82,13 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
     let m;
     try {
       mapboxgl.accessToken = MAP_TOKEN;
-      const first = latest.current.destination || latest.current.pickup || DEFAULT_CENTER;
-      m = new mapboxgl.Map({ container: box.current, style: MAP_STYLE, center: ll(first), zoom: 13, attributionControl: true, cooperativeGestures: false });
+      // Open ALREADY framed on the real points (no guessed zoom that corrects itself after "load"), sized to the container as it is right now.
+      const known = [latest.current.pickup, latest.current.destination, latest.current.rider, latest.current.me].filter(Boolean);
+      const view = initialView(known, { width: box.current.clientWidth, height: box.current.clientHeight }, DEFAULT_CENTER);
+      m = new mapboxgl.Map({
+        container: box.current, style: MAP_STYLE, attributionControl: true, cooperativeGestures: false,
+        ...(view.bounds ? { bounds: view.bounds, fitBoundsOptions: { padding: view.padding, maxZoom: FIT_MAX_ZOOM } } : { center: view.center, zoom: view.zoom }),
+      });
     } catch (err) {
       const msg = "This device can't display the map (WebGL is unavailable).";
       setFailed(msg); onError?.(msg);
@@ -88,10 +96,20 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
     }
     map.current = m;
     m.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
+    const reported = new Set();
     m.on("error", (e) => {
-      const status = e?.error?.status;
+      const err = e?.error; const status = err?.status;
       if (status === 401 || status === 403) { const msg = "The map key was rejected."; setFailed(msg); onError?.(msg); }
+      // Style/tile failures used to vanish silently, leaving a blank map and no clue why. Say what failed and at which zoom (never the token).
+      const url = String(err?.url || "").split("?")[0]; const key = `${status}|${url}`;
+      if (reported.size < 8 && !reported.has(key)) {
+        reported.add(key);
+        console.warn("[vyra:map] a map resource failed to load", { status, message: err?.message, url, source: e?.sourceId, zoom: Number(m.getZoom().toFixed(1)) });
+      }
     });
+    const watchdog = setTimeout(() => {
+      if (!ready.current && alive.current) console.warn("[vyra:map] the map style has not finished loading after 10 s. Check the Network tab for api.mapbox.com/styles (401/403 = token or its URL restrictions; blocked = ad-blocker/firewall).");
+    }, 10_000);
     const pause = (e) => { if (e.originalEvent) { userMoved.current = true; setRecenter(true); } }; // our own easeTo calls carry no originalEvent
     m.on("dragstart", pause);
     m.on("zoomstart", (e) => { if (!latest.current.navigation) pause(e); }); // navigation keeps the rider's chosen zoom instead of pausing on it
@@ -104,16 +122,29 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
         m.addLayer({ id, type: "line", source: id, layout: { "line-cap": "round", "line-join": "round" },
           paint: { "line-color": color, "line-width": width, "line-opacity": id === "route-live" ? 0.95 : 0.8, ...(dash ? { "line-dasharray": dash } : {}) } });
       }
+      clearTimeout(watchdog);
       ready.current = true;
       m.resize();
       sync();
       requestLive(); // the first fix may have arrived before the style finished loading
     });
     m.once("idle", () => m.resize());
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => m.resize()) : null;
+    // Until the user takes over, the view follows the layout: if the container settles at a different size than the one the last framing was
+    // computed for (late CSS, rotation, a panel opening), frame again for the real size. resize() alone fixes the canvas but not the camera.
+    let reframeTimer = 0;
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => {
+      m.resize();
+      clearTimeout(reframeTimer);
+      reframeTimer = setTimeout(() => {
+        const el = box.current; const f = frame.current.size;
+        if (!alive.current || !ready.current || !el || userMoved.current) return;
+        if (!f || Math.abs(el.clientWidth - f.width) > 8 || Math.abs(el.clientHeight - f.height) > 8) fit(true);
+      }, 150);
+    }) : null;
     ro?.observe(box.current);
     return () => {
       alive.current = false;
+      clearTimeout(watchdog); clearTimeout(reframeTimer);
       ro?.disconnect(); cancelAnimationFrame(anim.current.raf);
       live.current.abort?.abort(); live.current.seq.invalidate(); clearTimeout(live.current.timer); live.current.inFlight = false;
       Object.values(markers.current).forEach((mk) => mk.remove()); markers.current = {};
@@ -144,19 +175,38 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
     anim.current.raf = requestAnimationFrame(tick);
   }
 
-  function fit(force = false) {
-    const m = map.current; if (!m || !ready.current) return;
+  /** Frame the real points (+ the road, once known). `immediate` skips the periodic-refit throttle: a NEW ROUTE or a layout change must re-frame now. */
+  function fit(force = false, immediate = false) {
+    const m = map.current; if (!m || !ready.current || !box.current) return;
     if (latest.current.navigation && latest.current.rider) return; // the navigation camera owns the view (fitBounds would also reset the bearing to north)
     if (userMoved.current && !force) return;
     const { pickup: a, destination: b, rider: r, me: u } = latest.current;
     const pts = [a, b, r, u].filter(Boolean);
     if (!pts.length) return;
-    const extra = live.current.coords || []; // the road geometry itself, so a winding route is not cropped
-    if (!force && Date.now() - lastFit.current < 8000) return;
+    if (!force && !immediate && Date.now() - lastFit.current < 8000) return; // routine re-fits as the rider moves are throttled
     lastFit.current = Date.now();
-    if (pts.length === 1) { m.easeTo({ center: ll(pts[0]), zoom: 15, duration: reduceMotion() ? 0 : 500 }); return; }
+    m.resize(); // the canvas must match the container BEFORE a camera is computed for it
+    const size = { width: box.current.clientWidth, height: box.current.clientHeight };
+    const first = frame.current.size === null;
+    frame.current.size = size;
+    const duration = first || reduceMotion() ? 0 : 600;
+    if (pts.length === 1) { m.easeTo({ center: ll(pts[0]), zoom: SINGLE_POINT_ZOOM, duration }); return; }
+    const extra = cleanCoords(live.current.coords); // the road geometry itself, so a winding route is not cropped
     const bounds = extra.reduce((bb, c) => bb.extend(c), pts.reduce((bb, p) => bb.extend(ll(p)), new mapboxgl.LngLatBounds(ll(pts[0]), ll(pts[0]))));
-    m.fitBounds(bounds, { padding: FIT_PADDING, maxZoom: 16, duration: reduceMotion() ? 0 : 600 });
+    const padding = clampPadding(size); // never more padding than the container can spare, or fitBounds silently does nothing
+    m.fitBounds(bounds, { padding, maxZoom: FIT_MAX_ZOOM, duration });
+    explainWideFrame({ pickup: a, destination: b, rider: r, me: u }, pts, size, padding);
+  }
+
+  /** A genuinely wide frame (e.g. the rider's real GPS is far from the order's pickup/address) looks "blank": say so, once, with the numbers. */
+  function explainWideFrame(named, pts, size, padding) {
+    if (frame.current.warned) return;
+    const z = estimateFitZoom(pts, size, padding);
+    if (z == null || z >= WORLD_ZOOM) return;
+    frame.current.warned = true;
+    const round = (p) => p && { lat: +p.lat.toFixed(4), lng: +p.lng.toFixed(4) };
+    console.warn(`[vyra:map] These points are ${Math.round(spanKm(pts))} km apart, so framing them together opens at about zoom ${z.toFixed(1)} — too wide for streets to draw. This is the GPS/order coordinates disagreeing, not a rendering fault.`,
+      { pickup: round(named.pickup), destination: round(named.destination), rider: round(named.rider), me: round(named.me) });
   }
 
   function sync() {
@@ -204,13 +254,13 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
   useEffect(() => { sync(); }, [pickup?.lat, pickup?.lng, destination?.lat, destination?.lng, rider?.lat, rider?.lng, me?.lat, me?.lng, staleRider]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------- routes (Directions API; no line if it fails)
-  const baseKey = pickup && destination ? `${pickup.lat},${pickup.lng}>${destination.lat},${destination.lng}` : "";
+  const baseKey = pk && dst ? `${pk.lat},${pk.lng}>${dst.lat},${dst.lng}` : "";
   useEffect(() => {
     if (!baseKey || !MAP_TOKEN) return undefined;
     const ac = new AbortController();
     (async () => {
       try {
-        const r = await directions([pickup, destination], ac.signal);
+        const r = await directions([latest.current.pickup, latest.current.destination], ac.signal);
         for (let i = 0; i < 20 && !ready.current && !ac.signal.aborted; i++) await new Promise((x) => setTimeout(x, 150));
         if (!ac.signal.aborted && ready.current && map.current) map.current.getSource("route-base")?.setData(line(r?.coords));
       } catch { /* aborted or offline: no line */ }
@@ -256,7 +306,7 @@ export default function LiveMap({ pickup, destination, rider, me, phase = "to_cu
       try { route = await directions(path, ac.signal); } catch { route = null; } // aborted or offline
       if (ac.signal.aborted || !l.seq.isLatest(id) || !alive.current) return;  // a newer request owns the map now
       l.inFlight = false;
-      if (route) { l.okAt = Date.now(); publish(route); if (newLeg) fit(false); return; } // fit() itself respects a customer who is exploring the map
+      if (route) { l.okAt = Date.now(); publish(route); if (newLeg) fit(false, true); return; } // re-frame NOW to include the road (not throttled); fit() still respects a customer who is exploring the map
       // Failure: keep the previous route for a while if it is still for this leg, otherwise show nothing ("Calculating route…").
       l.last = { ...l.last, failed: true };
       if (newLeg || Date.now() - l.okAt > ROUTE_KEEP_MS) publish(null);
