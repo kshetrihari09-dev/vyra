@@ -56,7 +56,8 @@ export default function Auth({ nav }) {
   const verifyCode = async (code) => {
     await auth.registerVerify({ challengeId: challenge.id, code }); // throws with the server's message on a bad code
     toast("Welcome to Vyra");
-    nav("home");
+    // No nav() here: the signed-in session makes the shell (App.jsx) resolve the one post-login destination — the deep link the user was
+    // heading to, else their workspace — so there is a single decision and no stop at the storefront first.
   };
 
   const submitLogin = async () => {
@@ -66,8 +67,7 @@ export default function Auth({ nav }) {
     setBusy(true);
     try {
       await auth.login({ identifier: isNepalMobile(form.mobile) ? form.mobile : form.email.trim(), password: form.password });
-      toast("Welcome back");
-      nav("home");
+      toast("Welcome back"); // the shell takes it from here (see verifyCode)
     } catch (err) {
       if (err.code === "INVALID_CREDENTIALS") setErrors({ password: err.message });
       else toast(err.message, "danger");

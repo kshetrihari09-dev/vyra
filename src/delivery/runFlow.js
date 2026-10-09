@@ -31,3 +31,13 @@ export const currentTarget = (d) => (d?.status === "picked_up" ? "customer" : "s
 
 /** The device may share its position only for these states — mirrors the server's rule. */
 export const sharesLocation = (d) => d?.status === "accepted" || d?.status === "picked_up";
+
+/**
+ * The delivery a rider should be dropped straight into after signing in: one they have accepted and not finished
+ * (accepted or picked up). A parcel already collected outranks one still on its way to pickup. A run only *assigned* (not yet
+ * accepted) is a decision for the rider, not work in progress, so it never auto-opens. Returns null when nothing is in flight.
+ */
+export function inFlightDelivery(deliveries) {
+  const list = (Array.isArray(deliveries) ? deliveries : []).filter(sharesLocation);
+  return list.find((d) => d.status === "picked_up") || list[0] || null;
+}

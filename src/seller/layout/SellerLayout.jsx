@@ -6,6 +6,7 @@ import { Icon } from "../../components/shared/Icon.jsx";
 import { NAV, BOTTOM_NAV, isActive } from "./nav.js";
 import { useShop } from "../hooks/useShopData.js";
 import { roleOf } from "../../services/access.js";
+import { useWorkspaces } from "../../workspaces/useWorkspaces.js";
 import { fmt } from "../../utils/format.js";
 import { TONE } from "../../theme.js";
 
@@ -131,6 +132,8 @@ function Account({ nav, locked }) {
   const { seller } = useShop();
   const [open, setOpen] = useState(false);
   const role = roleOf(session, shopApplications);
+  const ws = useWorkspaces(nav, "shopDashboard");
+  const otherWs = ws.items.filter((w) => w.id !== "shop" && w.id !== "customer"); // "Switch to shopping" below already covers the storefront
   const initials = (session.user.name || "?").split(" ").map((n) => n[0]).join("").slice(0, 2);
   const item = (icon, label, onClick, danger) => (
     <button type="button" onClick={() => { setOpen(false); onClick(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-left hover:bg-black/[.03]" style={{ color: danger ? TONE.danger : s.text }}>
@@ -150,6 +153,12 @@ function Account({ nav, locked }) {
               <p className="text-xs truncate" style={{ color: s.muted }}>{seller.name} · {role === "shop_owner" ? "Shop owner" : "Staff preview"}</p>
             </div>
             {!locked && <div className="px-3.5 py-2.5 lg:hidden" style={{ borderBottom: `1px solid ${s.lineSoft}` }}><PreviewSwitch full /></div>}
+            {otherWs.length > 0 && (
+              <div style={{ borderBottom: `1px solid ${s.lineSoft}` }}>
+                <p className="px-3.5 pt-2.5 pb-1 text-[11px] font-semibold uppercase tracking-wide" style={{ color: s.faint }}>Switch workspace</p>
+                {otherWs.map((w) => item(w.icon, w.label, () => ws.go(w.id)))}
+              </div>
+            )}
             {item("Settings", "Shop settings", () => nav("shopSettings"))}
             {item("ShoppingCart", "Switch to shopping", () => nav("home"))}
             {item("LogOut", "Sign out", async () => { await auth.logout(); nav("welcome"); }, true)}

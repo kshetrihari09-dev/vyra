@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useApp, useC } from "../store/AppContext.jsx";
 import { PillButton, Badge, Divider, InlineNotice, Sheet } from "../components/shared/ui.jsx";
 import { QuickCreateProduct } from "../admin/QuickCreateProduct.jsx";
+import { WorkspaceSwitcher } from "../workspaces/WorkspaceSwitcher.jsx";
 import { ScanLine, Plus, Minus, Trash2, User, AlertTriangle } from "../components/shared/Icon.jsx";
 import { STORES } from "../data/stores.js";
 import { brandById } from "../data/brands.js";
@@ -125,6 +126,7 @@ export default function POS({ nav }) {
               className="text-xs font-semibold rounded-lg px-2.5 h-9 outline-none" style={{ background: OPS.surface, border: `1px solid ${OPS.line}`, color: OPS.ink }}>
               {STORES.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
+            <WorkspaceSwitcher nav={nav} view="pos" compact />
             <button onClick={() => nav("profile")} className="text-xs font-semibold rounded-lg px-3 h-9" style={{ background: OPS.surface, border: `1px solid ${OPS.line}`, color: OPS.sub }}>
               Exit POS
             </button>

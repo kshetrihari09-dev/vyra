@@ -8,7 +8,8 @@ import { capacityLine, vehicleLine } from "./riderState.js";
 import { storeById } from "../data/stores.js";
 import { fmt, timeLabel } from "../utils/format.js";
 import ActiveDelivery from "./ActiveDelivery.jsx";
-import { nextAction, sharesLocation } from "./runFlow.js";
+import { inFlightDelivery, nextAction, sharesLocation } from "./runFlow.js";
+import { WorkspaceSwitcher } from "../workspaces/WorkspaceSwitcher.jsx";
 import { TONE } from "../theme.js";
 
 const STATUS = {
@@ -30,12 +31,17 @@ const primeLocation = () => { try { navigator.geolocation?.getCurrentPosition(()
 
 /** The rider app. Everything here talks to /api/rider/* — the server decides what a rider may do and only ever
     returns their own deliveries. The customer's handover code is never sent to this screen. */
-export default function DeliveryOrders({ nav }) {
+const TABS = ["mine", "available", "history"];
+
+/** `params` / `sync` come from the shell (App.jsx): /delivery/:deliveryId reopens a run's map, /delivery?tab=… opens a tab, and /delivery?resume=active
+    (what sign-in sends a rider to) opens the in-flight run once the rider's own list has loaded. `sync` updates the address bar and the
+    remembered screen WITHOUT remounting this screen (a real nav() would, restarting GPS and refetching). */
+export default function DeliveryOrders({ nav, params = {}, sync }) {
   const { toast } = useApp();
   const C = useC();
   const [rider, setRider] = useState(null);
   const [problem, setProblem] = useState(null);      // { code, message } when the account can't use the rider app
-  const [tab, setTab] = useState("mine");
+  const [tab, setTab] = useState(TABS.includes(params.tab) ? params.tab : "mine");
   const [mine, setMine] = useState([]);
   const [available, setAvailable] = useState([]);
   const [history, setHistory] = useState([]);
@@ -48,7 +54,9 @@ export default function DeliveryOrders({ nav }) {
   const [locationIssue, setLocationIssue] = useState(null);   // null | "denied" | "unavailable"
   const [locationRetry, setLocationRetry] = useState(0);
   const [myPos, setMyPos] = useState(null);                    // this device's last shared fix (drawn on the rider's own map)
-  const [activeId, setActiveId] = useState(null);              // the delivery whose map screen is open
+  const [activeId, setActiveIdRaw] = useState(params.deliveryId || null); // the delivery whose map screen is open (opened by URL after a reload / sign-in)
+  const setActiveId = (id) => { setActiveIdRaw(id); sync?.(id ? "deliveryRun" : "delivery", id ? { deliveryId: id } : {}); };
+  const resumed = useRef(false);
   const loadSeq = useRef(0);
   const acting = useRef(false);
 
@@ -107,6 +115,13 @@ export default function DeliveryOrders({ nav }) {
   }, [shareIds, load, locationRetry]);
   // The run ended (delivered / reassigned / cancelled): leave its map screen.
   useEffect(() => { if (activeId && !loading && !mine.some((d) => d.id === activeId)) setActiveId(null); }, [activeId, mine, loading]);
+  /* Signed in as a rider: go straight to the delivery in progress — from the list this screen loaded anyway (no extra request). */
+  useEffect(() => {
+    if (loading || resumed.current || params.resume !== "active") return;
+    resumed.current = true;
+    const run = problem ? null : inFlightDelivery(mine);
+    if (run) setActiveId(run.id); else sync?.("delivery", {}); // nothing in flight: the normal list, with the ?resume flag cleared from the URL
+  }, [loading, problem, mine]); // eslint-disable-line react-hooks/exhaustive-deps
   const retryLocation = () => { primeLocation(); setLocationRetry((n) => n + 1); };
 
   const act = async (key, fn, message) => {
@@ -164,8 +179,11 @@ export default function DeliveryOrders({ nav }) {
   return (
     <Page>
       <PageHeader title="Delivery App" subtitle={`${capacityLine(rider)} · ${vehicleLine(rider)}`} onBack={() => nav("profile")}
-        right={<button onClick={toggleAvailability} disabled={busy === "avail"} className="px-3 py-1.5 rounded-full text-xs font-bold"
-          style={{ background: rider?.isAvailable ? TONE.ok : C.mint, color: rider?.isAvailable ? "#fff" : C.navy }}>{rider?.isAvailable ? "Available" : "Off duty"}</button>} />
+        right={<div className="flex items-center gap-2">
+          <WorkspaceSwitcher nav={nav} view="delivery" compact />
+          <button onClick={toggleAvailability} disabled={busy === "avail"} className="px-3 py-1.5 rounded-full text-xs font-bold"
+            style={{ background: rider?.isAvailable ? TONE.ok : C.mint, color: rider?.isAvailable ? "#fff" : C.navy }}>{rider?.isAvailable ? "Available" : "Off duty"}</button>
+        </div>} />
       <div className="px-4 md:px-0 space-y-3 md:max-w-3xl">{/* a readable column on desktop — cards used to stretch the full window width */}
         {loadError && <InlineNotice tone="warn">Couldn't refresh — showing the last loaded deliveries. <button className="underline font-bold" onClick={() => load()}>Retry</button></InlineNotice>}
         {locationIssue && <InlineNotice tone="warn" icon={MapPin}>{LOCATION_MESSAGE} <button type="button" className="underline font-bold" onClick={retryLocation}>Try again</button></InlineNotice>}

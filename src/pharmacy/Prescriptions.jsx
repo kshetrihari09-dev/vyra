@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useApp, useC } from "../store/AppContext.jsx";
 import { Page } from "../customer/layout/CustomerLayout.jsx";
 import { PageHeader, PillButton, Badge, Sheet, InlineNotice, EmptyState } from "../components/shared/ui.jsx";
+import { WorkspaceSwitcher } from "../workspaces/WorkspaceSwitcher.jsx";
 import { Icon, FileText, Check, X, Stethoscope } from "../components/shared/Icon.jsx";
 import { dateTimeLabel, fmt } from "../utils/format.js";
 import { expiringSoon, expiredBatches } from "../utils/inventory.js";
@@ -74,7 +75,7 @@ export default function Prescriptions({ nav }) {
 
   return (
     <Page>
-      <PageHeader title="Pharmacist Console" subtitle="Verify prescriptions before dispensing" onBack={() => nav("profile")} />
+      <PageHeader title="Pharmacist Console" subtitle="Verify prescriptions before dispensing" onBack={() => nav("profile")} right={<WorkspaceSwitcher nav={nav} view="pharmacy" compact />} />
       <div className="px-4 md:px-0">
         <div className="grid grid-cols-3 md:grid-cols-4 gap-2.5 mb-4">
           {[

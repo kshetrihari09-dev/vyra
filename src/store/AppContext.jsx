@@ -24,7 +24,7 @@ import { shopApplicationsApi } from "../services/api/shopApplicationsApi.js";
     low-stock) only see this many until their own server endpoints arrive (Phase 4 / Phase 8). */
 const CATALOG_PRELOAD = 100;
 
-const AppCtx = createContext(null);
+export const AppCtx = createContext(null); // exported so components can be rendered in isolation (tests)
 export const useApp = () => useContext(AppCtx);
 /** Theme tokens. Colours come from state, so every consumer re-renders on change. */
 export const useC = () => useContext(AppCtx).C;
@@ -56,6 +56,10 @@ const initial = {
      re-checks roles/permissions from the database on every protected request and never trusts it.
      shopOwnerSellerId is derived from approved shop applications until the seller API arrives (Phase 6). */
   session: GUEST_SESSION,
+  /* Why the user is signed out: "user" (pressed Sign out) or "expired" (the server ended the session). null while signed in / on first load.
+     The shell uses it so an EXPIRED session returns to the page it was on after signing in again, while an explicit sign-out never leaves a
+     destination behind for whoever uses the device next. */
+  signOutReason: null,
   registeredMobiles: [],
   registeredEmails: [],
   shopApplications: [], // local drafts + the caller's (or, for staff, every) server-side application — see loadCommerce
@@ -89,8 +93,8 @@ export function reducer(state, action) {
   switch (action.type) {
     case "THEME": return { ...state, themeKey: action.key };
     case "STORE": return { ...state, storeId: action.id };
-    case "SESSION_SET": return { ...state, session: sessionFromApiUser(action.user) };
-    case "SIGN_OUT": return { ...state, session: GUEST_SESSION };
+    case "SESSION_SET": return { ...state, session: sessionFromApiUser(action.user), signOutReason: null };
+    case "SIGN_OUT": return { ...state, session: GUEST_SESSION, signOutReason: action.reason || "expired" };
 
     case "CART_ADD": {
       const key = lineKey(action.productId, action.variantId);
@@ -533,7 +537,7 @@ export function AppProvider({ children }) {
     async login(credentials) { const { user } = await authApi.login(credentials); dispatch({ type: "SESSION_SET", user }); return user; },
     registerStart: authApi.registerStart,
     async registerVerify(payload) { const { user } = await authApi.registerVerify(payload); dispatch({ type: "SESSION_SET", user }); return user; },
-    async logout() { try { await authApi.logout(); } finally { dispatch({ type: "SIGN_OUT" }); } },
+    async logout() { try { await authApi.logout(); } finally { dispatch({ type: "SIGN_OUT", reason: "user" }); } },
   }), []);
 
   // Named `notify` (not `notifications`): the context value spreads `...state`, whose `notifications` is the ARRAY,

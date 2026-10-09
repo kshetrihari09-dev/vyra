@@ -10,6 +10,7 @@ const R = (view, path, area) => ({ view, path, area, segs: path.split("/").filte
 
 export const ROUTES = [
   R("welcome", "/welcome", "bare"),
+  R("workspaces", "/workspaces", "bare"), // signed-in entry point for people with more than one workspace (see services/workspaces.js)
 
   /* Customer storefront */
   R("home", "/customer/home", "customer"),
@@ -54,6 +55,7 @@ export const ROUTES = [
   R("admin", "/admin", "staff"),
   R("pharmacy", "/pharmacy", "staff"),
   R("delivery", "/delivery", "staff"),
+  R("deliveryRun", "/delivery/:deliveryId", "staff"), // one run's map screen; DeliveryOrders still owns it (this just makes it addressable/resumable)
   R("pos", "/pos", "bare"),
 ];
 
@@ -78,20 +80,29 @@ export function toPath(view, params = {}) {
   return path + qs;
 }
 
+/** Strict match: the route a path+query describes, or null for anything unknown (fromLocation falls back to home instead). */
+export function matchLocation(pathname, search = "") {
+  const parts = pathname.split("/").filter(Boolean);
+  if (parts.length === 0) return null;
+  try {
+    for (const r of ROUTES) {
+      if (r.segs.length !== parts.length) continue;
+      const params = {};
+      const ok = r.segs.every((s, i) => {
+        if (s.startsWith(":")) { params[s.slice(1)] = decodeURIComponent(parts[i]); return true; }
+        return s === parts[i];
+      });
+      if (!ok) continue;
+      new URLSearchParams(search).forEach((v, k) => { params[k] = v; });
+      return { view: r.view, params };
+    }
+  } catch { /* malformed %-escape: not a route */ }
+  return null;
+}
+
 export function fromLocation(pathname, search = "") {
   const parts = pathname.split("/").filter(Boolean);
   if (parts.length === 0) return null;
   if (parts[0] === "seller") return { view: "shopDashboard", params: {} };
-  for (const r of ROUTES) {
-    if (r.segs.length !== parts.length) continue;
-    const params = {};
-    const ok = r.segs.every((s, i) => {
-      if (s.startsWith(":")) { params[s.slice(1)] = decodeURIComponent(parts[i]); return true; }
-      return s === parts[i];
-    });
-    if (!ok) continue;
-    new URLSearchParams(search).forEach((v, k) => { params[k] = v; });
-    return { view: r.view, params };
-  }
-  return { view: "home", params: {} };
+  return matchLocation(pathname, search) || { view: "home", params: {} };
 }

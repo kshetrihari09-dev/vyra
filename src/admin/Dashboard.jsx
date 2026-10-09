@@ -15,6 +15,7 @@ import AdminShopApplications from "./ShopApplications.jsx";
 import AuditLogPage from "./AuditLog.jsx";
 import AdminRiders from "./Riders.jsx";
 import { canManageDelivery } from "../services/access.js";
+import { WorkspaceSwitcher } from "../workspaces/WorkspaceSwitcher.jsx";
 import { storeById, STORES, ROLES } from "../data/stores.js";
 import { expiringSoon } from "../utils/inventory.js";
 import { fmt, timeAgo } from "../utils/format.js";
@@ -40,15 +41,19 @@ const SECTIONS = [
 export default function Admin({ nav, params }) {
   const C = useC();
   const { session, sellers, dispatch } = useApp();
-  const [section, setSection] = useState(params.section || "overview");
+  // A ?section= can come from a link (the workspace hub), so accept it only if it is a section this account may open.
+  const [section, setSection] = useState(() => (SECTIONS.some((s) => s.id === params.section && (!s.needs || s.needs(session))) ? params.section : "overview"));
 
   return (
     <Page wide>
       <PageHeader title="Admin Console" subtitle="Catalogue, inventory, orders and reports" onBack={() => nav("profile")}
-        right={<button onClick={() => { dispatch({ type: "SELLER_SWITCH", id: (sellers.find((x) => x.firstParty) || {}).id || null }); nav("shopDashboard"); }}
-          className="px-3.5 py-2 rounded-full text-xs font-bold flex items-center gap-1.5" style={{ background: C.primary, color: "#fff" }}>
-          <Icon name="Store" size={14} /> Vyra Shop
-        </button>} />
+        right={<div className="flex items-center gap-2">
+          <WorkspaceSwitcher nav={nav} view="admin" compact />
+          <button onClick={() => { dispatch({ type: "SELLER_SWITCH", id: (sellers.find((x) => x.firstParty) || {}).id || null }); nav("shopDashboard"); }}
+            className="px-3.5 py-2 rounded-full text-xs font-bold flex items-center gap-1.5" style={{ background: C.primary, color: "#fff" }}>
+            <Icon name="Store" size={14} /> Vyra Shop
+          </button>
+        </div>} />
       <div className="px-4 md:px-0">
         <div className="flex gap-2 overflow-x-auto no-scrollbar mb-5">
           {SECTIONS.filter((s) => !s.needs || s.needs(session)).map((s) => (
