@@ -11,5 +11,10 @@ export const inventoryApi = {
   createPurchaseOrder: async (body) => (await api.post("/purchase-orders", body)).purchaseOrder,
   receivePurchaseOrder: async (id, lines) => (await api.post(`/purchase-orders/${id}/receive`, { lines })).purchaseOrder,
 
+  /** One sale. `body.idempotencyKey` makes it safe to send twice: the server returns the SAME sale (HTTP 200) instead of creating another. */
   posSale: async (body) => (await api.post("/pos/sale", body)).sale,
+  /** "Did my request go through?" — after a dropped connection, ask by the request id instead of guessing. 404 = it was not recorded. */
+  posSaleByKey: async (key) => (await api.get(`/pos/sales/by-key/${encodeURIComponent(key)}`)).sale,
+  posSaleById: async (id) => (await api.get(`/pos/sales/${encodeURIComponent(id)}`)).sale,
+  posSales: async (params = {}) => (await api.get("/pos/sales", params)).sales,
 };
