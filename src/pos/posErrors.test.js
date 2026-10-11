@@ -31,3 +31,10 @@ test("lookup errors", () => {
   assert.equal(describeLookupError(err(404, "PRODUCT_NOT_FOUND"), "8901"), "Product not found for “8901”.");
   assert.match(describeLookupError(err(0, "NETWORK_ERROR")), /Network connection lost/);
 });
+
+test("prescription errors keep the server's specific, safe message and are never indeterminate", () => {
+  for (const [status, code, msg] of [[400, "PRESCRIPTION_REQUIRED", "A prescription is required for: Amoxicillin."], [400, "PRESCRIPTION_INVALID", "That prescription doesn't cover: Cefixime."], [400, "PRESCRIPTION_EXPIRED", "This prescription is older than 180 days and can no longer be dispensed against."], [403, "PHARMACIST_REQUIRED", "A pharmacist must verify the prescription for: Amoxicillin."]]) {
+    const d = describePosError(err(status, code, msg)); assert.equal(d.message, msg, code); assert.equal(d.kind, "prescription"); assert.equal(d.indeterminate, false);
+  }
+  assert.match(describePosError(err(400, "PRESCRIPTION_NOT_NEEDED")).message, /no prescription-only medicines/);
+});

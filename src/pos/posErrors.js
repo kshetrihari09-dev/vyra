@@ -15,6 +15,11 @@ const ACTIONABLE = {
   BRANCH_NOT_FOUND: "That store isn't available. Pick another store.",
   INVALID_PAYMENT_METHOD: "That payment method isn't available at the till.",
   IDEMPOTENCY_KEY_REUSED: "This sale could not be matched to its earlier attempt. Please rebuild the sale.",
+  PRESCRIPTION_REQUIRED: null,                                // "A prescription is required for: Amoxicillin."
+  PRESCRIPTION_INVALID: null,                                 // specific and safe: "That prescription doesn't cover: …"
+  PRESCRIPTION_EXPIRED: null,
+  PHARMACIST_REQUIRED: null,                                  // "A pharmacist must verify the prescription for: …"
+  PRESCRIPTION_NOT_NEEDED: "This sale has no prescription-only medicines, so the prescription was removed. Please try again.",
   VALIDATION_ERROR: "Some sale details are invalid. Please check the cart and try again.",
 };
 
@@ -32,7 +37,7 @@ export function describePosError(err) {
     return { kind: "server", indeterminate: true, message: "Unable to complete the sale right now. We couldn't confirm whether it was recorded — retrying is safe and will not create a second sale." };
   }
   if (code in ACTIONABLE) {
-    const kind = code === "INSUFFICIENT_STOCK" ? "stock" : code === "PRICE_CHANGED" ? "price" : code === "INSUFFICIENT_PAYMENT" ? "payment" : "rejected";
+    const kind = code === "INSUFFICIENT_STOCK" ? "stock" : code === "PRICE_CHANGED" ? "price" : code === "INSUFFICIENT_PAYMENT" ? "payment" : /^(PRESCRIPTION|PHARMACIST)_/.test(code) ? "prescription" : "rejected";
     return { kind, indeterminate: false, message: ACTIONABLE[code] ?? err.message ?? "Unable to complete the sale.", details: err.details };
   }
   if (err?.status === 429) return { kind: "busy", indeterminate: false, message: "Too many requests. Wait a moment and try again." };

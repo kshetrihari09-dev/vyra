@@ -3,7 +3,7 @@ import { useApp, useC } from "../store/AppContext.jsx";
 import { Badge, Divider, InlineNotice, Sheet } from "../components/shared/ui.jsx";
 import { QuickCreateProduct } from "../admin/QuickCreateProduct.jsx";
 import { WorkspaceSwitcher } from "../workspaces/WorkspaceSwitcher.jsx";
-import { ScanLine, Plus, Minus, Trash2, User, AlertTriangle, Loader2, RotateCcw, Percent } from "../components/shared/Icon.jsx";
+import { ScanLine, Plus, Minus, Trash2, User, AlertTriangle, Loader2, RotateCcw, Percent, FileText } from "../components/shared/Icon.jsx";
 import { STORES } from "../data/stores.js";
 import { brandById } from "../data/brands.js";
 import { searchCatalog } from "../utils/search.js";
@@ -20,6 +20,8 @@ import { QtyInput } from "./QtyInput.jsx";
 import { VariantSheet } from "./VariantSheet.jsx";
 import { PaymentSheet } from "./PaymentSheet.jsx";
 import { ReceiptSheet } from "./ReceiptSheet.jsx";
+import { PrescriptionSheet } from "./PrescriptionSheet.jsx";
+import { coversAll, describeRx, rxGate, rxProductIds } from "./posRx.js";
 
 const WALK_IN = "Walk-in customer";
 const CODE_LIKE = /^[A-Za-z0-9][A-Za-z0-9._/-]{3,}$/; // what a scanned barcode / SKU / product code looks like: no spaces
@@ -49,6 +51,9 @@ export default function POS({ nav }) {
   const [batchPick, setBatchPick] = useState(null);
   const [variantPick, setVariantPick] = useState(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [rx, setRx] = useState(null);              // the prescription attached to this sale: { payload (sent to the API), summary (shown) }
+  const [rxOpen, setRxOpen] = useState(false);
+  const [rxError, setRxError] = useState(null);   // the server's reason, shown inside the prescription dialog it sends you back to
 
   const inputRef = useRef(null);
   const customerRef = useRef(null);
@@ -57,6 +62,8 @@ export default function POS({ nav }) {
   const requestId = useRef(null);      // the id of the CURRENT sale attempt; kept across retries, replaced only after a definite outcome
   const searchSeq = useRef(0);
   const locked = busy === "sale" || !!pending;
+  const canVerify = !!session.permissions?.includes("prescriptions:review"); // only a pharmacist can verify a prescription (the server enforces it)
+  const rxRef = useRef(null);
 
   const setCart = useCallback((next) => { cartRef.current = next; setCartState(next); }, []);
   const flash = useCallback((tone, text) => setNotice({ tone, text }), []);
@@ -89,7 +96,7 @@ export default function POS({ nav }) {
     const variant = variantId ? product.variants?.find((v) => v.id === variantId) : null;
     return {
       productId: product.id, variantId, batch: batch?.batch || null, name: product.name, label: variant?.label || null, unit: product.unit, sku: product.sku,
-      unitPrice: priceOf(product, variantId).price, taxPercent: product.tax || 0,
+      unitPrice: priceOf(product, variantId).price, taxPercent: product.tax || 0, rx: !!product.flags?.prescriptionRequired,
       cap: batch ? batch.qty : variantId ? stockFor(product, variantId, store) : sellableQty(product, store),
     };
   }, [store]);
@@ -102,8 +109,12 @@ export default function POS({ nav }) {
     else if (r.result === "limit") flash("warn", `Only ${r.qty} ${r.qty === 1 ? "unit" : "units"} of ${product.name} available.`);
     else flash("ok", r.result === "added" ? `Added ${product.name}` : `${product.name} × ${r.qty}`);
     setQuery(""); setHighlight(0);
+    if (product.flags?.prescriptionRequired && (r.result === "added" || r.result === "incremented")) {
+      if (!canVerify) flash("warn", `${product.name} needs a prescription — a pharmacist must verify it before it can be sold.`);
+      else if (!rxRef.current) { setRxOpen(true); return; } // ask for the prescription right away; the cashier doesn't have to remember
+    }
     inputRef.current?.focus();
-  }, [locked, lineFor, setCart, flash]);
+  }, [locked, lineFor, setCart, flash, canVerify]);
 
   const handleSelect = useCallback((product) => {
     if (locked) return;
@@ -157,6 +168,14 @@ export default function POS({ nav }) {
   const { discount, error: discountParseError } = useMemo(() => parseDiscount(discountType, discountRaw), [discountType, discountRaw]);
   const totals = useMemo(() => previewTotals(cart, discount), [cart, discount]);
   const discountError = discountParseError || totals.error;
+  const rxIds = useMemo(() => rxProductIds(cart), [cart]);
+  const gate = useMemo(() => rxGate({ cart, rx, canVerify }), [cart, rx, canVerify]);
+  rxRef.current = rx;
+  useEffect(() => { // the prescription must keep matching the cart
+    if (!rxIds.length) { if (rx) setRx(null); return; }
+    if (rx?.payload.source === "online" && !coversAll(rx.summary.items, rxIds)) { setRx(null); flash("warn", "The attached prescription no longer covers every medicine in the cart. Add the prescription again."); }
+  }, [rxIds, rx, flash]);
+  const nameById = useMemo(() => new Map(cart.map((l) => [l.productId, l.name])), [cart]);
   const overCashierCap = discountType === "percent" && discount && discount.value > MAX_CASHIER_DISCOUNT_PERCENT;
 
   // ------------------------------------------------------------------ re-sync lines with fresh server data (after a refusal, or a sale)
@@ -176,7 +195,7 @@ export default function POS({ nav }) {
     setReceipt(sale); setPending(null); setPayOpen(false); setPayError(null); setNotice(null);
     requestId.current = null;
     const ids = cartRef.current.map((l) => l.productId);
-    setCart([]); setDiscountRaw(""); setReceived(""); setCustomerName(WALK_IN);
+    setCart([]); setDiscountRaw(""); setReceived(""); setCustomerName(WALK_IN); setRx(null);
     dispatch({ type: "AUDIT", entry: { actor: session.user.name, action: "POS sale completed", detail: `${sale.number} · ${fmt(sale.totals.total)}` } });
     toast(`Sale completed · Invoice #${sale.number}`);
     refreshProducts(ids); // the stock that just left; best-effort, the next search shows server numbers anyway
@@ -186,13 +205,14 @@ export default function POS({ nav }) {
     if (submitting.current) return;                         // 1) synchronous guard — a second click in the same tick stops here
     if (!retry) {
       if (!cartRef.current.length) return;
+      if (!gate.ready) { if (canVerify) setRxOpen(true); else flash("danger", gate.message); return; }   // never send a sale the server will refuse for want of a prescription
       if (discountError) { flash("danger", discountError); return; }
       if (payment === "cash" && !cashChange(totals.total, received).ok) { setPayError("Payment amount is insufficient."); setPayOpen(true); return; }
     }
     submitting.current = true; setBusy("sale"); setPayError(null); setNotice(null);
     // 2) the request id: made once per attempt and REUSED for every retry of it, so the server can recognise a repeat and answer with the original sale.
     const body = retry && pending ? pending.body
-      : buildSaleRequest({ store, cart: cartRef.current, discount, customerName, payment, received: payment === "cash" ? cashChange(totals.total, received).received : null, expectedTotal: totals.total, idempotencyKey: (requestId.current ||= newRequestId()) });
+      : buildSaleRequest({ store, cart: cartRef.current, discount, customerName, payment, received: payment === "cash" ? cashChange(totals.total, received).received : null, expectedTotal: totals.total, idempotencyKey: (requestId.current ||= newRequestId()), prescription: gate.required ? rx?.payload : undefined });
     try {
       finish(await inventoryApi.posSale(body));
     } catch (err) {
@@ -209,9 +229,14 @@ export default function POS({ nav }) {
           refreshProducts([err.details.productId]);
         } else if (d.kind === "price") refreshProducts(cartRef.current.map((l) => l.productId));
         else if (d.kind === "auth") setPayOpen(false);
+        else if (d.kind === "prescription") {                          // the server's word on prescriptions is final
+          setPayOpen(false); flash("danger", d.message);               // the payment sheet (where payError shows) is closing, so say it here too
+          if (/^PRESCRIPTION_(INVALID|EXPIRED|NOT_NEEDED)$/.test(err.code)) setRx(null);
+          if (canVerify && /^PRESCRIPTION_(REQUIRED|INVALID|EXPIRED)$/.test(err.code)) { setRxError(d.message); setRxOpen(true); } // back to the dialog, with the reason
+        }
       }
     } finally { submitting.current = false; setBusy(null); }
-  }, [discountError, payment, totals.total, received, pending, store, discount, customerName, payOpen, finish, flash, setCart, refreshProducts]);
+  }, [gate, rx, canVerify, discountError, payment, totals.total, received, pending, store, discount, customerName, payOpen, finish, flash, setCart, refreshProducts]);
 
   /** Connection dropped mid-sale: ask the server whether that attempt was recorded (by its request id) instead of guessing. */
   const checkStatus = async () => {
@@ -231,14 +256,14 @@ export default function POS({ nav }) {
 
   // ------------------------------------------------------------------ keyboard: F2 search · F4 customer · F8 payment · F9 complete · scanner capture
   const kb = useRef({});
-  kb.current = { cartLen: cart.length, locked, modal: payOpen || !!batchPick || !!variantPick || !!receipt || createOpen, cashOk: payment !== "cash" || cashChange(totals.total, received).ok, submit, setPayOpen };
+  kb.current = { cartLen: cart.length, locked, modal: payOpen || !!batchPick || !!variantPick || !!receipt || createOpen || rxOpen, cashOk: payment !== "cash" || cashChange(totals.total, received).ok, rxReady: gate.ready, canVerify, submit, setPayOpen, setRxOpen };
   useEffect(() => {
     const onKey = (e) => {
       const s = kb.current;
       if (e.key === "F2") { e.preventDefault(); inputRef.current?.focus(); inputRef.current?.select(); return; }
       if (e.key === "F4") { e.preventDefault(); customerRef.current?.focus(); customerRef.current?.select(); return; }
-      if (e.key === "F8") { e.preventDefault(); if (s.cartLen && !s.locked) s.setPayOpen(true); return; }
-      if (e.key === "F9") { e.preventDefault(); if (s.cartLen && !s.locked) { if (s.cashOk) s.submit(); else s.setPayOpen(true); } return; }
+      if (e.key === "F8") { e.preventDefault(); if (s.cartLen && !s.locked) { if (s.rxReady) s.setPayOpen(true); else if (s.canVerify) s.setRxOpen(true); } return; }
+      if (e.key === "F9") { e.preventDefault(); if (s.cartLen && !s.locked) { if (!s.rxReady) { if (s.canVerify) s.setRxOpen(true); } else if (s.cashOk) s.submit(); else s.setPayOpen(true); } return; }
       // A scanner "types" into whatever has focus. If the cashier clicked a button or the page, hand the keystrokes to the search box so the
       // first digit isn't lost — they never have to click the box between scans.
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && !s.modal && !isEditable(e.target) && !s.locked) inputRef.current?.focus();
@@ -330,6 +355,19 @@ export default function POS({ nav }) {
           </div>
 
           <div className="rounded-lg p-4" style={{ background: OPS.surface, border: `1px solid ${OPS.line}`, height: "fit-content" }}>
+            {gate.required && (
+              <div className="rounded-lg p-3 mb-4" role="status" style={{ background: gate.ready ? OPS.okBg : OPS.warnBg, border: `1px solid ${gate.ready ? OPS.ok : OPS.warn}` }}>
+                <div className="flex items-start gap-2">
+                  <FileText size={15} style={{ color: gate.ready ? OPS.ok : OPS.warn, flexShrink: 0, marginTop: 2 }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold" style={{ color: gate.ready ? OPS.ok : OPS.warn }}>{gate.ready ? "Prescription recorded" : gate.reason === "pharmacist" ? "Pharmacist required" : "Prescription needed"}</p>
+                    <p className="text-sm" style={{ color: OPS.ink }}>{gate.ready ? describeRx(rx).title : gate.message}</p>
+                    {gate.ready && <p className="text-[11px]" style={{ color: OPS.sub }}>{describeRx(rx).detail}</p>}
+                  </div>
+                </div>
+                {canVerify && <button onClick={() => setRxOpen(true)} disabled={locked} className="mt-2 text-xs font-bold disabled:opacity-50" style={{ color: OPS.blue }}>{gate.ready ? "Change prescription" : "Add prescription"}</button>}
+              </div>
+            )}
             <label className="text-[11px] font-bold uppercase tracking-wide mb-2 block" style={{ color: OPS.sub }} htmlFor="pos-customer">Customer (optional)  ·  F4</label>
             <div className="flex items-center gap-2 rounded-lg px-3 h-10 mb-4" style={{ background: OPS.bg, border: `1px solid ${OPS.line}` }}>
               <User size={14} style={{ color: OPS.sub }} />
@@ -368,12 +406,12 @@ export default function POS({ nav }) {
                 <span className="font-extrabold text-xl" style={{ color: OPS.ink }}>{fmt(totals.total)}</span>
               </div>
             </div>
-            <button onClick={() => setPayOpen(true)} disabled={!cart.length || locked || !!discountError}
+            <button onClick={() => setPayOpen(true)} disabled={!cart.length || locked || !!discountError || !gate.ready}
               className="w-full rounded-lg py-3 font-bold text-sm disabled:opacity-40 flex items-center justify-center gap-2" style={{ background: OPS.blue, color: "#fff" }}>
               {busy === "sale" ? <><Loader2 size={15} className="animate-spin" /> Completing sale…</> : <>Payment · {fmt(totals.total)}</>}
             </button>
             <p className="text-[11px] text-center mt-2" style={{ color: OPS.sub }}>F2 search · F4 customer · F8 payment · F9 complete</p>
-            {cart.length > 0 && !locked && <button onClick={() => { setCart([]); setDiscountRaw(""); requestId.current = null; inputRef.current?.focus(); }} className="w-full text-xs font-bold mt-3" style={{ color: OPS.danger }}>Clear sale</button>}
+            {cart.length > 0 && !locked && <button onClick={() => { setCart([]); setDiscountRaw(""); setRx(null); requestId.current = null; inputRef.current?.focus(); }} className="w-full text-xs font-bold mt-3" style={{ color: OPS.danger }}>Clear sale</button>}
           </div>
         </div>
       </div>
@@ -381,11 +419,13 @@ export default function POS({ nav }) {
       {/* phone / tablet: the total and the Pay button stay within thumb reach */}
       <div className="md:hidden fixed bottom-0 inset-x-0 z-30 px-4 py-3 flex items-center gap-3" style={{ background: OPS.surface, borderTop: `1px solid ${OPS.line}`, boxShadow: "0 -4px 16px rgba(28,43,51,.08)" }}>
         <div className="flex-1 min-w-0"><p className="text-[11px]" style={{ color: OPS.sub }}>{cartCount} {cartCount === 1 ? "item" : "items"}</p><p className="font-extrabold text-lg leading-tight" style={{ color: OPS.ink }}>{fmt(totals.total)}</p></div>
-        <button onClick={() => setPayOpen(true)} disabled={!cart.length || locked || !!discountError} className="px-6 h-11 rounded-lg font-bold text-sm disabled:opacity-40" style={{ background: OPS.blue, color: "#fff" }}>Pay</button>
+        <button onClick={() => setPayOpen(true)} disabled={!cart.length || locked || !!discountError || !gate.ready} className="px-6 h-11 rounded-lg font-bold text-sm disabled:opacity-40" style={{ background: OPS.blue, color: "#fff" }}>Pay</button>
       </div>
 
       <PaymentSheet open={payOpen} total={totals.total} payment={payment} setPayment={setPayment} received={received} setReceived={(v) => { setReceived(v); setPayError(null); }}
         busy={busy === "sale"} error={payError} onConfirm={() => submit()} onClose={() => setPayOpen(false)} />
+      <PrescriptionSheet open={rxOpen} error={rxError} onClose={() => { setRxOpen(false); setRxError(null); inputRef.current?.focus(); }} rxIds={rxIds} nameById={nameById} current={rx} canVerify={canVerify}
+        onSave={(r) => { setRx(r); setRxOpen(false); setRxError(null); setNotice(null); inputRef.current?.focus(); }} />
       {receipt && <ReceiptSheet sale={receipt} onClose={() => { setReceipt(null); setTimeout(() => inputRef.current?.focus(), 50); }} />}
       {batchPick && <BatchPickSheet product={batchPick} onClose={() => setBatchPick(null)} onPick={(batch) => { addToCart(batchPick, null, batch); setBatchPick(null); }} />}
       {variantPick && <VariantSheet product={variantPick} store={store} onClose={() => setVariantPick(null)} onPick={(variantId) => { addToCart(variantPick, variantId, null); setVariantPick(null); }} />}
@@ -403,7 +443,7 @@ const ResultRow = memo(function ResultRow({ p, store, active, first, onPick, onH
     <button onClick={() => onPick(p)} onMouseEnter={onHover} className="w-full flex items-center gap-3 px-4 py-2.5 text-left"
       style={{ background: active ? OPS.blueBg : "transparent", borderTop: first ? "none" : `1px solid ${OPS.line}`, opacity: qty === 0 ? 0.65 : 1 }}>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold truncate" style={{ color: OPS.ink }}>{p.name}</p>
+        <p className="text-sm font-bold truncate" style={{ color: OPS.ink }}>{p.name}{p.flags?.prescriptionRequired && <span className="ml-1.5 align-middle text-[10px] font-extrabold px-1.5 py-0.5 rounded" style={{ background: OPS.warnBg, color: OPS.warn }}>Rx</span>}</p>
         <p className="text-[11px] truncate" style={{ color: OPS.sub }}>{brandById(p.brandId).name} · {p.sku}{p.barcode ? ` · ${p.barcode}` : ""} · per {p.unit || "unit"}{needsBatch ? " · batch-tracked" : ""}{variants ? ` · ${variants} options` : ""}</p>
       </div>
       <span className="text-sm font-bold shrink-0" style={{ color: OPS.ink }}>{variants ? "from " : ""}{fmt(from)}</span>
@@ -416,7 +456,7 @@ const CartRow = memo(function CartRow({ line: l, first, locked, onStep, onCommit
   return (
     <div className="flex items-center gap-2 px-3 py-2.5" style={{ borderTop: first ? "none" : `1px solid ${OPS.line}` }}>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold truncate" style={{ color: OPS.ink }}>{l.name}{l.label ? ` — ${l.label}` : ""}</p>
+        <p className="text-sm font-semibold truncate" style={{ color: OPS.ink }}>{l.name}{l.label ? ` — ${l.label}` : ""}{l.rx && <span className="ml-1.5 align-middle text-[10px] font-extrabold px-1.5 py-0.5 rounded" style={{ background: OPS.warnBg, color: OPS.warn }}>Rx</span>}</p>
         <p className="text-[11px] truncate" style={{ color: OPS.sub }}>{fmt(l.unitPrice)}{l.unit ? ` / ${l.unit}` : ""}{l.batch ? ` · batch ${l.batch}` : ""}{l.qty >= l.cap ? " · max in stock" : ""}</p>
       </div>
       <span className="hidden md:block w-20 text-sm text-right shrink-0" style={{ color: OPS.ink }}>{fmt(l.unitPrice)}</span>

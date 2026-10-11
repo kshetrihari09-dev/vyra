@@ -16,5 +16,7 @@ export const inventoryApi = {
   /** "Did my request go through?" — after a dropped connection, ask by the request id instead of guessing. 404 = it was not recorded. */
   posSaleByKey: async (key) => (await api.get(`/pos/sales/by-key/${encodeURIComponent(key)}`)).sale,
   posSaleById: async (id) => (await api.get(`/pos/sales/${encodeURIComponent(id)}`)).sale,
+  /** Approved prescriptions (uploaded in the app) covering these medicines — the pharmacist's pick-list at the till. Needs prescriptions:review. */
+  posPrescriptions: async (productIds) => (await api.get("/pos/prescriptions/approved", { productIds: productIds.join(",") })).prescriptions,
   posSales: async (params = {}) => (await api.get("/pos/sales", params)).sales,
 };

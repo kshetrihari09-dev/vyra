@@ -20,9 +20,14 @@ export function receiptHtml(sale, business, money) {
   const row = (label, value, cls = "") => `<tr class="${cls}"><td>${e(label)}</td><td class="r">${e(value)}</td></tr>`;
   const lines = sale.items.map((it) => `
     <div class="item"><div class="nm">${e(it.name)}</div>
+      ${it.prescriptionRequired ? `<div class="sub">Rx · prescription medicine</div>` : ""}
       <div class="ln"><span>${e(it.qty)} × ${e(money(it.unitPrice))}</span><span>${e(money(it.lineTotal))}</span></div>
       ${it.discount > 0 ? `<div class="ln sub"><span>Discount</span><span>−${e(money(it.discount))}</span></div>` : ""}
     </div>`).join("");
+  const rx = sale.prescription;
+  const rxBlock = rx ? `<hr><div class="nm">Prescription medicines dispensed</div><table>
+${row("Patient", rx.patientName || "—")}${rx.prescriberName ? row("Prescriber", rx.prescriberName) : ""}${rx.prescriberRegNo ? row("Reg. no.", rx.prescriberRegNo) : ""}${rx.issuedOn ? row("Issued", rx.issuedOn) : ""}${row("Source", rx.source === "online" ? "Customer app (approved)" : "Paper prescription")}${rx.verifiedBy ? row("Verified by", rx.verifiedBy) : ""}
+</table>` : "";
   const discountLabel = sale.discount?.type === "percent" ? `Discount (${e(sale.discount.value)}%)` : "Discount";
   return `<!doctype html><html><head><meta charset="utf-8"><title>Receipt ${e(sale.number)}</title><style>
 @page { size: 80mm auto; margin: 3mm; }
@@ -51,7 +56,7 @@ ${row("TOTAL", money(t.total), "total")}
 ${row("Payment", METHOD[p.method] || p.method)}
 ${p.method === "cash" ? row("Received", money(p.received)) + row("Change", money(p.change)) : ""}
 </table>
-<hr><div class="c">Thank you for shopping with us!</div>
+${rxBlock}<hr><div class="c">Thank you for shopping with us!</div>
 </body></html>`;
 }
 

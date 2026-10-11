@@ -32,3 +32,18 @@ test("every dynamic value is escaped — a hostile product or customer name prin
 });
 test("escapeHtml", () => { assert.equal(escapeHtml(`<a href="x">&'`), "&lt;a href=&quot;x&quot;&gt;&amp;&#39;"); assert.equal(escapeHtml(null), ""); });
 test("is a self-contained 80 mm thermal document", () => { const h = receiptHtml(sale(), biz, money); assert.match(h, /^<!doctype html>/); assert.ok(h.includes("size: 80mm auto")); assert.ok(!/<link|<script/.test(h)); });
+
+test("a prescription sale prints the dispensing record and marks the medicine lines Rx", () => {
+  const rx = { source: "in_store", patientName: "Sita Rai", prescriberName: "Dr. A. Sharma", prescriberRegNo: "NMC-1234", issuedOn: "2026-06-10", verifiedBy: "Asha Pharmacist" };
+  const h = receiptHtml(sale({ prescription: rx, items: [{ name: "Amoxicillin 500", qty: 1, unitPrice: 10, lineTotal: 10, discount: 0, tax: 0, prescriptionRequired: true }, { name: "Soap", qty: 1, unitPrice: 5, lineTotal: 5, discount: 0, tax: 0 }] }), biz, money);
+  for (const needle of ["Prescription medicines dispensed", "Sita Rai", "Dr. A. Sharma", "NMC-1234", "2026-06-10", "Paper prescription", "Verified by", "Asha Pharmacist", "Rx · prescription medicine"]) assert.ok(h.includes(needle), needle);
+  assert.equal(h.split("Rx · prescription medicine").length - 1, 1, "only the medicine line is marked");
+});
+test("an online prescription is labelled as such; a sale with no prescription prints no prescription block", () => {
+  assert.ok(receiptHtml(sale({ prescription: { source: "online", patientName: "Ram", verifiedBy: "Asha" } }), biz, money).includes("Customer app (approved)"));
+  assert.ok(!receiptHtml(sale({ prescription: null }), biz, money).includes("Prescription medicines dispensed"));
+});
+test("prescription fields are escaped like everything else", () => {
+  const h = receiptHtml(sale({ prescription: { source: "in_store", patientName: "<script>alert(1)</script>", prescriberName: "<b>x</b>", verifiedBy: "<i>y</i>" } }), biz, money);
+  assert.ok(!h.includes("<script>alert") && !h.includes("<b>x</b>") && !h.includes("<i>y</i>"));
+});

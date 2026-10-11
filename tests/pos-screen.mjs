@@ -19,7 +19,10 @@ const COKE = P({ id: "coke", name: "Coke 500ml", sku: "BEV-COK", barcode: "89000
 const NOODLES = P({ id: "noodles", name: "Instant Noodles", sku: "GRO-NOO", barcode: "8900000000028", price: 40 });
 const SOAP = P({ id: "soap", name: "Soap Bar", sku: "HOM-SOP", barcode: "8900000000035", price: 100, tax: 5, stock: { "store-01": 2 } });
 const TEE = P({ id: "tee", name: "Cotton Tee", sku: "FAS-TEE", barcode: "8900000000042", price: 300, variants: [{ id: "s", label: "Small", price: 300, stock: { "store-01": 4 } }, { id: "m", label: "Medium", price: 320, stock: { "store-01": 0 } }], stock: undefined });
-const ALL = [COKE, NOODLES, SOAP, TEE];
+const AMOX = P({ id: "amox", name: "Amoxicillin 500", sku: "MED-AMX", barcode: "8900000000059", unit: "strip", price: 120, flags: { prescriptionRequired: true } });
+const CEF = P({ id: "cef", name: "Cefixime 200", sku: "MED-CEF", barcode: "8900000000066", unit: "strip", price: 90, flags: { prescriptionRequired: true } });
+const ALL = [COKE, NOODLES, SOAP, TEE, AMOX, CEF];
+let appRx = []; // approved prescriptions the pick-list returns
 const calls = []; let saleQueue = []; let byKey = null;
 const reply = (status, body) => ({ ok: status < 400, status, headers: { get: () => "application/json" }, json: async () => body });
 const ok = (data) => reply(200, { success: true, data });
@@ -31,6 +34,7 @@ globalThis.fetch = async (url, opts = {}) => {
   if (u.pathname === "/api/products" && method === "GET") { const q = (u.searchParams.get("q") || "").toLowerCase(); const items = ALL.filter((p) => p.name.toLowerCase().includes(q)); return ok({ items, page: 1, pageSize: 12, total: items.length }); }
   if (u.pathname.startsWith("/api/products/")) { const p = ALL.find((x) => x.id === decodeURIComponent(u.pathname.split("/").pop())); return p ? ok({ product: p }) : err(404, "PRODUCT_NOT_FOUND", "x"); }
   if (u.pathname === "/api/pos/sale") { const next = saleQueue.shift(); if (!next) throw new Error("unscripted sale call"); return next(body); }
+  if (u.pathname === "/api/pos/prescriptions/approved") return ok({ prescriptions: appRx });
   if (u.pathname.startsWith("/api/pos/sales/by-key/")) return byKey ? byKey() : err(404, "SALE_NOT_FOUND", "none");
   throw new Error(`unstubbed ${method} ${url}`);
 };
@@ -43,11 +47,13 @@ const vite = await createServer({ root: process.cwd(), server: { middlewareMode:
 const React = (await import("react")).default; const { createRoot } = await import("react-dom/client"); const { act } = React;
 const { AppCtx } = await vite.ssrLoadModule("/src/store/AppContext.jsx"); const { THEMES } = await vite.ssrLoadModule("/src/theme.js");
 const POS = (await vite.ssrLoadModule("/src/pos/POS.jsx")).default;
-const session = { signedIn: true, roles: ["pharmacist"], permissions: ["pos:sell"], user: { name: "Asha", uuid: "u1" }, shopOwnerSellerId: null };
+const sessionWith = (permissions) => ({ signedIn: true, roles: ["pharmacist"], permissions, user: { name: "Asha", uuid: "u1" }, shopOwnerSellerId: null });
+const PHARMACIST = ["pos:sell", "prescriptions:review", "prescriptions:read_all"];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const toasts = []; const audits = [];
 let root;
-const mount = async () => {
+const mount = async (permissions = ["pos:sell"]) => {
+  const session = sessionWith(permissions); appRx = [];
   calls.length = 0; saleQueue = []; byKey = null; toasts.length = 0; audits.length = 0;
   const host = w.document.getElementById("root"); host.innerHTML = ""; root = createRoot(host);
   const value = { C: Object.values(THEMES)[0], products: ALL, storeId: "store-01", session, shopApplications: [], categories: [{ id: "grocery", name: "Grocery", parent: null }, { id: "snacks", name: "Snacks", parent: "grocery", attributes: [] }], dispatch: (a) => audits.push(a), toast: (m, t) => toasts.push([m, t]), catalog: { cacheProducts() {} } };
@@ -66,7 +72,7 @@ const sales = () => calls.filter((c) => c.path === "/api/pos/sale");
 const qtyInputs = () => $$('input[aria-label^="Quantity of"]');
 
 const results = [];
-const T = async (name, fn) => { try { await mount(); await fn(); results.push([name, "PASS"]); } catch (e) { results.push([name, `FAIL — ${e.message.split("\n")[0]}`]); } finally { await unmount().catch(() => {}); } };
+const T = async (name, fn, perms) => { try { await mount(perms); await fn(); results.push([name, "PASS"]); } catch (e) { results.push([name, `FAIL — ${e.message.split("\n")[0]}`]); } finally { await unmount().catch(() => {}); } };
 
 // ================================================================ scenarios
 await T("empty states: empty cart, and 'no products found'", async () => {
@@ -234,6 +240,117 @@ await T("F8/F9 do nothing on an empty sale", async () => {
   assert.ok(!text().includes("Amount due")); assert.equal(sales().length, 0);
 });
 await T("walk-in is the default customer; no customer is required", async () => { assert.equal($("#pos-customer").value, "Walk-in customer"); await scan("8900000000011"); await click(byText("Payment ·")); await typeInto($("#pos-received"), "100"); saleQueue.push((b) => ok({ sale: SALE(b) })); await click($$("button").find((b) => b.textContent.includes("Complete sale"))); await act(async () => { await sleep(30); }); assert.equal(sales()[0].body.customerName, "Walk-in customer"); });
+
+
+// ================================================================ prescription-required medicines
+const complete = () => $$("button").find((b) => b.textContent.includes("Complete sale"));
+const payBtn = () => $$("button").find((b) => b.textContent.includes("Payment ·"));
+const field = (id) => $(`#${id}`);
+const fillPaper = async ({ patient = "Sita Rai", prescriber = "Dr. A. Sharma", reg = "NMC-1234", confirm = true } = {}) => {
+  await typeInto(field("rx-patient"), patient); await typeInto(field("rx-prescriber"), prescriber); await typeInto(field("rx-reg"), reg);
+  if (confirm) await click($('input[type="checkbox"]'));
+};
+const savePaper = async () => { await click(byText("Use this prescription")); };
+const payAndComplete = async (cash = "500") => { await click(payBtn()); await typeInto($("#pos-received"), cash); await click(complete()); await act(async () => { await sleep(30); }); };
+
+await T("Rx · a pharmacist selecting a prescription medicine is asked for the prescription straight away; payment stays blocked until it's recorded", async () => {
+  await scan("8900000000059");
+  assert.ok(text().includes("Prescription required for: Amoxicillin 500"), "dialog opened on its own");
+  assert.ok($("#rx-patient"), "paper form is shown"); assert.equal($("#rx-date").value.length, 10, "issue date defaults to today");
+  await key(w.document, "Escape"); await act(async () => { await sleep(10); });
+  assert.ok(text().includes("Prescription needed"), "panel says it's needed"); assert.ok(payBtn().disabled, "cannot pay without a prescription");
+  assert.ok(text().includes("Rx"), "Rx badge on the line");
+}, PHARMACIST);
+await T("Rx · the paper form tells the pharmacist exactly what's missing, then accepts a complete one", async () => {
+  await scan("8900000000059"); await typeInto(field("rx-patient"), ""); await savePaper();
+  assert.ok(text().includes("Enter the patient's name") && text().includes("Enter the prescriber's name") && text().includes("Confirm that you have checked the original"), "each field flagged");
+  assert.ok($("#rx-patient"), "dialog stays open");
+  await fillPaper(); await savePaper();
+  assert.ok(!$("#rx-patient"), "dialog closed"); assert.ok(text().includes("Prescription recorded") && text().includes("Sita Rai · Dr. A. Sharma"), "panel shows who/what");
+  assert.ok(!payBtn().disabled, "payment unlocked");
+}, PHARMACIST);
+await T("Rx · TEST: the sale carries the prescription (explicit fields only), the receipt prints the dispensing record, and the cart clears only after success", async () => {
+  await scan("8900000000059"); await fillPaper(); await savePaper();
+  saleQueue.push((b) => ok({ sale: SALE(b, { storeName: "Vyra Central", prescription: { source: "in_store", patientName: "Sita Rai", prescriberName: "Dr. A. Sharma", prescriberRegNo: "NMC-1234", issuedOn: b.prescription.issuedOn, verifiedBy: "Asha" }, items: [{ productId: "amox", name: "Amoxicillin 500", qty: 1, unitPrice: 120, lineTotal: 120, discount: 0, tax: 0, prescriptionRequired: true }] }) }));
+  await payAndComplete();
+  const b = sales()[0].body;
+  assert.deepEqual(Object.keys(b.prescription).sort(), ["issuedOn", "patientName", "prescriberName", "prescriberRegNo", "source", "verified"], "only API fields; no display extras");
+  assert.deepEqual([b.prescription.source, b.prescription.patientName, b.prescription.verified, b.prescription.prescriberRegNo], ["in_store", "Sita Rai", true, "NMC-1234"]);
+  const html = $("iframe").getAttribute("srcdoc"); assert.ok(html.includes("Prescription medicines dispensed") && html.includes("Sita Rai") && html.includes("Rx · prescription medicine"), "receipt");
+  assert.equal(qtyInputs().length, 0, "cart cleared after success"); assert.ok(!text().includes("Prescription recorded"), "prescription cleared with the sale");
+}, PHARMACIST);
+await T("Rx · a plain cashier (no prescriptions:review) cannot dispense it: no dialog, a clear reason, payment and F8/F9 blocked, nothing is sent", async () => {
+  await scan("8900000000059");
+  assert.ok(!$("#rx-patient"), "no form offered to someone who can't verify");
+  assert.ok(text().includes("Pharmacist required") && text().includes("A pharmacist must verify the prescription for Amoxicillin 500"));
+  assert.ok(payBtn().disabled);
+  await act(async () => { for (const k of ["F8", "F9"]) w.document.dispatchEvent(new w.KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true })); });
+  assert.ok(!text().includes("Amount due"), "F8 doesn't open payment"); assert.equal(sales().length, 0);
+}, ["pos:sell"]);
+await T("Rx · removing the prescription medicine drops the requirement (and the recorded prescription); an ordinary item then sells normally", async () => {
+  await scan("8900000000059"); await fillPaper(); await savePaper(); assert.ok(text().includes("Prescription recorded"));
+  await click($('button[aria-label="Remove Amoxicillin 500"]'));
+  assert.ok(!text().includes("Prescription recorded") && !text().includes("Prescription needed"), "panel gone");
+  await scan("8900000000011"); assert.ok(!payBtn().disabled);
+  saleQueue.push((b) => ok({ sale: SALE(b) })); await payAndComplete("100"); assert.ok(!("prescription" in sales()[0].body), "no prescription sent for an ordinary sale");
+}, PHARMACIST);
+await T("Rx · a mixed cart needs the prescription only for the medicine; both lines are in the request", async () => {
+  await scan("8900000000011"); assert.ok(!text().includes("Prescription needed"), "ordinary item alone: no requirement");
+  await scan("8900000000059"); assert.ok($("#rx-patient"), "dialog opens when the Rx item joins"); await fillPaper(); await savePaper();
+  saleQueue.push((b) => ok({ sale: SALE(b) })); await payAndComplete("500");
+  assert.deepEqual(sales()[0].body.items.map((i) => i.productId).sort(), ["amox", "coke"]); assert.equal(sales()[0].body.prescription.source, "in_store");
+}, PHARMACIST);
+await T("Rx · an approved prescription from the app: pick-list, non-covering ones disabled, usage warning, ownership confirmation required, sent as 'online'", async () => {
+  appRx = [{ id: "rx-1", customerName: "Ram Karki", approvedAt: new Date().toISOString(), items: ["amox"], uses: 2 }, { id: "rx-2", customerName: "Gita Thapa", approvedAt: new Date().toISOString(), items: ["soap"], uses: 0 }];
+  await scan("8900000000059"); await click(byText("Approved in the app", "button")); await act(async () => { await sleep(30); });
+  assert.ok(calls.some((c) => c.path === "/api/pos/prescriptions/approved" && c.query.productIds === "amox"), "asked for prescriptions covering the cart's Rx medicine");
+  assert.ok(text().includes("Ram Karki") && text().includes("Already used 2 times"), "list + usage warning");
+  const radios = $$('[role="radio"]'); assert.equal(radios.length, 2); assert.ok(radios[1].disabled && text().includes("Doesn't cover: Amoxicillin 500"), "a prescription for something else can't be chosen");
+  const use = () => byText("Use selected prescription"); assert.ok(use().disabled);
+  await click(radios[0]); assert.ok(use().disabled, "ownership not confirmed yet"); await click($('input[type="checkbox"]')); assert.ok(!use().disabled);
+  await click(use()); assert.ok(text().includes("App prescription · Ram Karki"));
+  saleQueue.push((b) => ok({ sale: SALE(b) })); await payAndComplete();
+  assert.deepEqual(sales()[0].body.prescription, { source: "online", prescriptionId: "rx-1", verified: true });
+}, PHARMACIST);
+await T("Rx · the app list: empty and failed states are explained", async () => {
+  await scan("8900000000059"); await click(byText("Approved in the app", "button")); await act(async () => { await sleep(30); });
+  assert.ok(text().includes("No approved prescriptions in the app cover these medicines"));
+}, PHARMACIST);
+await T("Rx · adding a second prescription medicine that the app prescription doesn't cover invalidates it (and says so)", async () => {
+  appRx = [{ id: "rx-1", customerName: "Ram Karki", approvedAt: new Date().toISOString(), items: ["amox"], uses: 0 }];
+  await scan("8900000000059"); await click(byText("Approved in the app", "button")); await act(async () => { await sleep(30); });
+  await click($$('[role="radio"]')[0]); await click($('input[type="checkbox"]')); await click(byText("Use selected prescription")); assert.ok(text().includes("App prescription"));
+  await scan("8900000000066"); await act(async () => { await sleep(20); }); // Cefixime — not on that prescription
+  assert.ok(text().includes("no longer covers every medicine"), "explained"); assert.ok(!text().includes("App prescription · Ram Karki")); assert.ok(payBtn().disabled, "blocked again");
+}, PHARMACIST);
+await T("Rx · the SERVER's word is final: an expired/invalid prescription is refused → message, prescription cleared, dialog reopened, cart kept", async () => {
+  await scan("8900000000059"); await fillPaper(); await savePaper();
+  saleQueue.push(() => err(400, "PRESCRIPTION_EXPIRED", "This prescription is older than 180 days and can no longer be dispensed against."));
+  await payAndComplete();
+  assert.ok(text().includes("can no longer be dispensed against"), "the SERVER's message (not the form's own hint) is shown"); assert.ok($("#rx-patient"), "dialog reopened to fix it"); assert.ok($('[role="alert"], div') && text().split("can no longer be dispensed against").length >= 2, "shown"); assert.equal(qtyInputs().length, 1, "cart kept"); assert.ok(!text().includes("Invoice #"));
+}, PHARMACIST);
+await T("Rx · a pharmacist-only refusal from the server (stale permissions) is explained and the cart is kept", async () => {
+  await scan("8900000000059"); await fillPaper(); await savePaper();
+  saleQueue.push(() => err(403, "PHARMACIST_REQUIRED", "A pharmacist must verify the prescription for: Amoxicillin 500."));
+  await payAndComplete(); assert.ok(text().includes("A pharmacist must verify the prescription for: Amoxicillin 500."), "the refusal is visible (with the server's wording, which has a colon)"); assert.equal(qtyInputs().length, 1); assert.ok(!text().includes("Amount due"), "payment sheet closed");
+}, PHARMACIST);
+await T("Rx · double-click Complete with a prescription → still exactly ONE request", async () => {
+  await scan("8900000000059"); await fillPaper(); await savePaper(); await click(payBtn()); await typeInto($("#pos-received"), "500");
+  let release; saleQueue.push((b) => new Promise((res) => { release = () => res(ok({ sale: SALE(b) })); }));
+  const c = complete(); await act(async () => { c.click(); c.click(); c.click(); }); assert.equal(sales().length, 1); await act(async () => { release(); await sleep(30); });
+}, PHARMACIST);
+await T("Rx · connection lost mid-sale: the SAME prescription is resent on retry (identical body), nothing re-asked", async () => {
+  await scan("8900000000059"); await fillPaper(); await savePaper();
+  saleQueue.push(() => { throw new TypeError("Failed to fetch"); }); await payAndComplete();
+  assert.ok(text().includes("Sale not confirmed")); assert.ok(byText("Change prescription").disabled, "can't change the prescription while the outcome is unknown");
+  saleQueue.push((b) => ok({ sale: SALE(b) })); await click(byText("Retry sale")); await act(async () => { await sleep(30); });
+  assert.deepEqual(sales()[1].body, sales()[0].body); assert.ok(text().includes("Invoice #"));
+}, PHARMACIST);
+await T("Rx · Esc closes the dialog without recording anything", async () => {
+  await scan("8900000000059"); assert.ok($("#rx-patient")); await key(w.document, "Escape"); await act(async () => { await sleep(10); });
+  assert.ok(!$("#rx-patient")); assert.ok(text().includes("Prescription needed")); assert.ok(payBtn().disabled);
+}, PHARMACIST);
+await T("Rx · the product search shows the Rx badge", async () => { await typeInto(search(), "amoxi"); await act(async () => { await sleep(350); }); assert.ok(text().includes("Rx"), "badge in results"); }, PHARMACIST);
 
 console.log("\n" + results.map(([n, r]) => `${r === "PASS" ? "✓" : "✗"} ${n}${r === "PASS" ? "" : "\n    " + r}`).join("\n"));
 console.log(`\n${results.filter((r) => r[1] === "PASS").length}/${results.length} passed`);

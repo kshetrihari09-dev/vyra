@@ -135,7 +135,7 @@ export function newRequestId() {
 }
 
 /** The request body for POST /pos/sale from the cart — only WHAT is sold; no prices or taxes are sent as truth. */
-export function buildSaleRequest({ store, cart, discount, customerName, payment, received, expectedTotal, idempotencyKey }) {
+export function buildSaleRequest({ store, cart, discount, customerName, payment, received, expectedTotal, idempotencyKey, prescription }) {
   return {
     branch: store,
     items: cart.map((l) => ({ productId: l.productId, ...(l.variantId ? { variantId: l.variantId } : {}), qty: l.qty })),
@@ -143,6 +143,7 @@ export function buildSaleRequest({ store, cart, discount, customerName, payment,
     ...(payment === "cash" && received != null ? { amountReceived: received } : {}),
     ...(discount ? { discount } : {}),
     ...(customerName?.trim() ? { customerName: customerName.trim().slice(0, 100) } : {}),
+    ...(prescription ? { prescription } : {}),
     expectedTotal,
     idempotencyKey,
   };
