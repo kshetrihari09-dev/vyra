@@ -17,7 +17,9 @@ export default function Notifications({ nav }) {
 
   const route = async (n) => {
     if (n.unread) app.notify.markRead(n.id).catch(() => {});
-    if (n.data?.orderId) nav("orderDetails", { orderId: n.data.orderId });
+    if (n.type === "support.new_message") nav("pharmacy", { tab: "messages" });
+    else if (n.type === "support.reply") nav("support", { open: "chat" });
+    else if (n.data?.orderId) nav("orderDetails", { orderId: n.data.orderId });
     else if (n.data?.prescriptionId) nav("prescription");
     else if (n.data?.applicationId) nav("sellerApplication", { applicationId: n.data.applicationId });
     else if (n.kind === "seller") nav("sellerDashboard");

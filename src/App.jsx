@@ -160,7 +160,7 @@ function Shell() {
       case "support": return <Support nav={nav} params={params} />;
       case "offers": return <Offers nav={nav} />;
       case "admin": return isAdmin(session) ? <Lazy><Admin nav={nav} params={params} /></Lazy> : <AdminGate signedIn={session.signedIn} nav={nav} />;
-      case "pharmacy": return <Lazy><Pharmacy nav={nav} /></Lazy>;
+      case "pharmacy": return <Lazy><Pharmacy nav={nav} params={params} /></Lazy>;
       case "delivery":
       case "deliveryRun": return canUseRiderApp(session) ? <Lazy><Delivery nav={nav} params={params} sync={syncRoute} /></Lazy> : <RiderRestricted nav={nav} />;
       default: return <Home nav={nav} />;
@@ -187,8 +187,8 @@ function Shell() {
     body = hasPermission(session, "pos:sell")
       ? <Lazy><POS nav={nav} /></Lazy>
       : <AccessDenied nav={nav} title="Point of Sale is restricted" body="This area is for staff with point-of-sale access." />;
-  } else if (view === "pharmacy" && !hasPermission(session, "prescriptions:review")) {
-    body = <AccessDenied nav={nav} title="Pharmacist console is restricted" body="This area is for staff who review prescriptions." />;
+  } else if (view === "pharmacy" && !hasPermission(session, "prescriptions:review") && !hasPermission(session, "support:pharmacist")) {
+    body = <AccessDenied nav={nav} title="Pharmacist console is restricted" body="This area is for staff who review prescriptions or answer customers." />;
   } else {
     body = (
       <>

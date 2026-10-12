@@ -29,12 +29,12 @@ export function createSseParser(onEvent) {
 }
 
 /**
- * Reads one tracking stream until it ends. Resolves when the server closes it (normally: final state or token lifetime);
- * rejects with ApiError for a non-stream answer (404 no access, 401, 5xx) or a network failure. `onActivity` fires on every
+ * Reads one authenticated event stream until it ends. Resolves when the server closes it (normally: lifetime or final state);
+ * rejects with ApiError for a non-stream answer (403/404, 401, 5xx) or a network failure. `onActivity` fires on every
  * chunk — including heartbeats — so the caller can run an idle watchdog.
  */
-export async function readTrackingStream(orderId, { signal, onEvent, onActivity }) {
-  const res = await streamRequest(`/orders/${encodeURIComponent(orderId)}/tracking/stream`, { signal });
+export async function readEventStream(path, { signal, onEvent, onActivity }) {
+  const res = await streamRequest(path, { signal });
   if (!res.ok || !(res.headers.get("content-type") || "").includes("text/event-stream")) {
     let json = null; try { json = await res.json(); } catch { /* not JSON — e.g. an HTML page from a proxy */ }
     throw new ApiError(res.status, json?.code || "STREAM_UNAVAILABLE", json?.message || `Live updates are unavailable (${res.status})`);
@@ -48,3 +48,6 @@ export async function readTrackingStream(orderId, { signal, onEvent, onActivity 
     parse(dec.decode(value, { stream: true }));
   }
 }
+
+/** Reads one tracking stream until it ends (see readEventStream). */
+export const readTrackingStream = (orderId, opts) => readEventStream(`/orders/${encodeURIComponent(orderId)}/tracking/stream`, opts);

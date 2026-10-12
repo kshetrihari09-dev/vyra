@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useApp, useC } from "../store/AppContext.jsx";
 import { Page } from "../customer/layout/CustomerLayout.jsx";
 import { PageHeader, PillButton, Badge, Sheet, InlineNotice, EmptyState } from "../components/shared/ui.jsx";
@@ -7,6 +7,9 @@ import { Icon, FileText, Check, X, Stethoscope } from "../components/shared/Icon
 import { dateTimeLabel, fmt } from "../utils/format.js";
 import { expiringSoon, expiredBatches } from "../utils/inventory.js";
 import { TONE } from "../theme.js";
+import PharmacistInbox, { ConsoleTabs } from "./PharmacistInbox.jsx";
+import { hasPermission } from "../services/access.js";
+import { supportApi } from "../services/api/supportApi.js";
 
 const TABS = [
   { id: "pending", label: "Awaiting review" },
@@ -15,7 +18,7 @@ const TABS = [
 ];
 
 /** Pharmacist console — the only place prescriptions are approved or rejected. */
-export default function Prescriptions({ nav }) {
+function PrescriptionsView({ nav, sectionTabs }) {
   const { prescriptions, products, orders, storeId, commerce, dispatch, toast, session } = useApp();
   const C = useC();
   const [tab, setTab] = useState("pending");
@@ -76,6 +79,7 @@ export default function Prescriptions({ nav }) {
   return (
     <Page>
       <PageHeader title="Pharmacist Console" subtitle="Verify prescriptions before dispensing" onBack={() => nav("profile")} right={<WorkspaceSwitcher nav={nav} view="pharmacy" compact />} />
+      {sectionTabs}
       <div className="px-4 md:px-0">
         <div className="grid grid-cols-3 md:grid-cols-4 gap-2.5 mb-4">
           {[
@@ -195,4 +199,27 @@ export default function Prescriptions({ nav }) {
       </Sheet>
     </Page>
   );
+}
+
+/** Pharmacist console: Prescriptions (unchanged) + Customer messages (the pharmacist inbox). Each tab only shows for the permission that backs it. */
+export default function Prescriptions({ nav, params = {} }) {
+  const { session } = useApp();
+  const canRx = hasPermission(session, "prescriptions:review");
+  const canChat = hasPermission(session, "support:pharmacist");
+  const [section, setSection] = useState(canChat && (params.tab === "messages" || !canRx) ? "messages" : "rx");
+  const [unread, setUnread] = useState(0);
+
+  // Badge on the Messages tab: how many open conversations have something nobody has read yet.
+  useEffect(() => {
+    if (!canChat) return undefined;
+    let alive = true;
+    const tick = () => { if (!document.hidden) supportApi.inbox({ status: "open" }).then((r) => alive && setUnread(r.unreadConversations)).catch(() => {}); };
+    tick(); const t = setInterval(tick, 30_000);
+    return () => { alive = false; clearInterval(t); };
+  }, [canChat]);
+
+  const tabs = canRx && canChat ? <ConsoleTabs section={section} onChange={setSection} unread={unread} /> : null;
+  return section === "messages" && canChat
+    ? <PharmacistInbox nav={nav} sectionTabs={tabs} onUnread={setUnread} />
+    : <PrescriptionsView nav={nav} sectionTabs={tabs} />;
 }

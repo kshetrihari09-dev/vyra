@@ -9,6 +9,7 @@ const KIND = {
   delivery: { icon: "Truck", tone: "info" },
   payment: { icon: "CreditCard", tone: "ok" },
   prescription: { icon: "FileText", tone: "ok" },
+  support: { icon: "MessageCircle", tone: "info" },
   promo: { icon: "Percent", tone: "warn" },
   price: { icon: "TrendingUp", tone: "warn" },
   stock: { icon: "PackageCheck", tone: "ok" },

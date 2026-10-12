@@ -303,7 +303,7 @@ function ProductView({ nav, params, product }) {
             {product.usage && <Detail title="Directions for use" body={product.usage} />}
             {product.sideEffects && <Detail title="Safety information" body={product.sideEffects} />}
             {hasModule(product.categoryId, "prescription", categories) && (
-              <button onClick={() => nav("support", { topic: "pharmacist" })}
+              <button onClick={() => nav("support", { topic: "pharmacist", productId: product.id })}
                 className="w-full rounded-2xl p-4 flex items-center gap-3 text-left" style={{ background: C.mint }}>
                 <span className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: C.white }}>
                   <MessageCircle size={17} style={{ color: C.primary }} />

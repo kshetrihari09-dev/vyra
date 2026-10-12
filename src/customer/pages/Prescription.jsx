@@ -120,7 +120,7 @@ export default function Prescription({ nav, params }) {
           )}
         </div>
 
-        <button onClick={() => nav("support", { topic: "pharmacist" })} className="w-full rounded-2xl p-4 flex items-center gap-3 text-left" style={{ background: C.white, border: `1px solid ${C.border}` }}>
+        <button onClick={() => nav("support", { topic: "pharmacist", ...(product ? { productId: product.id } : {}) })} className="w-full rounded-2xl p-4 flex items-center gap-3 text-left" style={{ background: C.white, border: `1px solid ${C.border}` }}>
           <span className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: C.mint }}>
             <MessageCircle size={17} style={{ color: C.primary }} />
           </span>

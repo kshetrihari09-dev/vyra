@@ -7,13 +7,13 @@ export const STORES = [
     id: "store-01", name: "Vyra Central", code: "CEN",
     address: "12 Harbour Street, Central District", city: "Metro City",
     distanceKm: 1.2, etaMinutes: 18, open: true, hours: "7:00 AM – 11:00 PM",
-    phone: "+1 555 0142", pharmacistOnDuty: true, otpRequired: true,
+    pharmacistOnDuty: true, otpRequired: true,
   },
   {
     id: "store-02", name: "Vyra Riverside", code: "RIV",
     address: "88 Riverside Walk, North Quarter", city: "Metro City",
     distanceKm: 4.6, etaMinutes: 35, open: true, hours: "8:00 AM – 10:00 PM",
-    phone: "+1 555 0177", pharmacistOnDuty: false, otpRequired: true,
+    pharmacistOnDuty: false, otpRequired: true,
   },
 ];
 export const storeById = (id) => STORES.find((s) => s.id === id) || STORES[0];

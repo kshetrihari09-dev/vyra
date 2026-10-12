@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test \"src/**/*.test.js\"",
-    "test:screen": "node tests/pos-screen.mjs"
+    "test:screen": "node tests/pos-screen.mjs",
+    "test:support": "node tests/support-screen.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.383.0",
