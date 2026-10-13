@@ -28,6 +28,20 @@ export default function CallShopButton({ sellerId, shopName, nav }) {
     return () => clearInterval(t);
   }, [eligible, load]);
 
+  // Guests see the option too, with a way in; staff accounts and a shop's own owner see nothing (calls are customer -> shop only).
+  if (!session?.signedIn && sellerId && nav) {
+    return (
+      <div className="px-4 py-3 flex items-center justify-between gap-3" style={{ borderTop: `1px solid ${C.border}` }}>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold" style={{ color: C.navy }}>Talk to {shopName}</p>
+          <p className="text-xs" style={{ color: C.muted }}>Sign in to make a free voice call to this shop.</p>
+        </div>
+        <button type="button" onClick={() => nav("welcome")} className="rounded-full font-semibold text-sm px-4 py-2.5 inline-flex items-center gap-2 shrink-0" style={{ background: C.primary, color: "#fff" }}>
+          <Phone size={15} /> Sign in to call
+        </button>
+      </div>
+    );
+  }
   if (!eligible || !calls) return null;
   // Always show the row to a signed-in customer, with the real reason when calling isn't possible (never a silently missing button).
   const reason = !st ? "Checking availability…"
