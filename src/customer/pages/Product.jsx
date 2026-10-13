@@ -68,9 +68,13 @@ function ProductView({ nav, params, product }) {
 
   const cat = resolveCategory(product.categoryId, categories);
   const brand = brandById(product.brandId);
-  // A shop created after the app's local seller list was written isn't in it; never crash on that, fall back to a generic label.
+  // Who sells this: a product tied to a shop (sellerId) shows THAT shop's real name from the server — never a guess from the
+  // brand. Only older catalogue products with no sellerId fall back to the built-in brand-to-seller list.
   const sellerKey = sellerForProduct(product);
-  const seller = sellerById(sellerKey) || { id: sellerKey, name: "Vyra seller", firstParty: false, rating: null };
+  const known = sellerById(sellerKey);
+  const seller = product.sellerId
+    ? { ...(known || { firstParty: false, rating: null }), id: product.sellerId, name: product.sellerName || known?.name || "Vyra seller" }
+    : known || { id: sellerKey, name: "Vyra seller", firstParty: false, rating: null };
   const { price, mrp, discountPct } = priceOf(product, variantId);
   const stock = stockState(product, variantId, storeId);
   const cap = Math.max(maxAddable(product, variantId, storeId), 1);
