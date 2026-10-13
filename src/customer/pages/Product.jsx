@@ -12,6 +12,7 @@ import {
 } from "../../components/shared/Icon.jsx";
 import { brandById } from "../../data/brands.js";
 import { sellerForProduct, sellerById } from "../../data/sellers.js";
+import CallShopButton from "../components/CallShopButton.jsx";
 import { resolveCategory, categoryPath, hasModule, categoryTreeIds } from "../../data/categories.js";
 import { priceOf, defaultVariantId } from "../../utils/pricing.js";
 import { stockState, maxAddable, fefoBatches, daysToExpiry } from "../../utils/inventory.js";
@@ -220,6 +221,7 @@ function ProductView({ nav, params, product }) {
               {seller.firstParty && <Badge tone="mint">Official</Badge>}
               {!seller.firstParty && seller.rating != null && <Rating value={seller.rating} size={11} />}
             </div>
+            <CallShopButton sellerId={seller.id} shopName={seller.name} nav={nav} />
             <Divider />
             <div className="px-4 py-3 flex items-start gap-3">
               <Truck size={16} style={{ color: C.primary }} className="mt-0.5 shrink-0" />

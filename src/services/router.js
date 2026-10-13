@@ -40,6 +40,7 @@ export const ROUTES = [
   R("shopInventory", "/shop/inventory", "shop"),
   R("shopOrderDetails", "/shop/orders/:orderId", "shop"),
   R("shopOrders", "/shop/orders", "shop"),
+  R("shopCalls", "/shop/calls", "shop"),
   R("shopCustomers", "/shop/customers", "shop"),
   R("shopSales", "/shop/sales", "shop"),
   R("shopOffers", "/shop/offers", "shop"),

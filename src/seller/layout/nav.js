@@ -5,6 +5,7 @@ export const NAV = [
   { view: "shopProducts", label: "Products", icon: "Package" },
   { view: "shopInventory", label: "Inventory", icon: "Warehouse" },
   { view: "shopOrders", label: "Orders", icon: "Receipt", match: ["shopOrderDetails"], badge: true },
+  { view: "shopCalls", label: "Calls", icon: "Phone" },
   { view: "shopCustomers", label: "Customers", icon: "Users" },
   { view: "shopSales", label: "Sales", icon: "TrendingUp" },
   { view: "shopOffers", label: "Offers", icon: "Megaphone" },

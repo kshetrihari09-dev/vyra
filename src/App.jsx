@@ -10,6 +10,7 @@ import { deliveryApi } from "./services/api/deliveryApi.js";
 import { inFlightDelivery } from "./delivery/runFlow.js";
 import AccessDenied from "./components/shared/AccessDenied.jsx";
 import { Logo } from "./components/shared/Logo.jsx";
+import { CallsProvider } from "./calls/CallsProvider.jsx";
 
 import Home from "./customer/pages/Home.jsx";
 import Categories from "./customer/pages/Categories.jsx";
@@ -202,7 +203,10 @@ function Shell() {
 
   return (
     <div className="min-h-screen" style={{ background: C.bg }}>
-      {body}
+      {/* Vyra Call lives above every screen so a call survives navigation, and the shop hears incoming calls anywhere in its dashboard. */}
+      <CallsProvider area={area} nav={nav}>
+        {body}
+      </CallsProvider>
       <Toasts />
     </div>
   );

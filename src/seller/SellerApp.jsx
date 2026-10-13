@@ -16,11 +16,12 @@ import Offers from "./pages/Offers.jsx";
 import Payouts from "./pages/Payouts.jsx";
 import Reports from "./pages/Reports.jsx";
 import Settings from "./pages/Settings.jsx";
+import Calls from "./pages/Calls.jsx";
 
 const PAGES = {
   shopDashboard: Dashboard, shopProducts: Products, shopInventory: Inventory,
   shopOrders: Orders, shopOrderDetails: Orders, shopCustomers: Customers,
-  shopSales: Sales, shopOffers: Offers, shopPayouts: Payouts, shopReports: Reports, shopSettings: Settings,
+  shopSales: Sales, shopOffers: Offers, shopPayouts: Payouts, shopReports: Reports, shopSettings: Settings, shopCalls: Calls,
 };
 
 function Workspace({ seller, locked, view, params, nav }) {
