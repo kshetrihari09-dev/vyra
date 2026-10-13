@@ -68,7 +68,9 @@ function ProductView({ nav, params, product }) {
 
   const cat = resolveCategory(product.categoryId, categories);
   const brand = brandById(product.brandId);
-  const seller = sellerById(sellerForProduct(product));
+  // A shop created after the app's local seller list was written isn't in it; never crash on that, fall back to a generic label.
+  const sellerKey = sellerForProduct(product);
+  const seller = sellerById(sellerKey) || { id: sellerKey, name: "Vyra seller", firstParty: false, rating: null };
   const { price, mrp, discountPct } = priceOf(product, variantId);
   const stock = stockState(product, variantId, storeId);
   const cap = Math.max(maxAddable(product, variantId, storeId), 1);
