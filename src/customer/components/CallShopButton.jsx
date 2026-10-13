@@ -21,7 +21,7 @@ export default function CallShopButton({ sellerId, shopName, nav }) {
   const [st, setSt] = useState(null);
   const eligible = !!session?.signedIn && !session.isStaff && session.shopOwnerSellerId !== sellerId && !!sellerId;
 
-  const load = useCallback(() => callsApi.shopStatus(sellerId).then(setSt).catch(() => setSt({ state: "unavailable", callable: false })), [sellerId]);
+  const load = useCallback(() => callsApi.shopStatus(sellerId).then(setSt).catch(() => setSt({ state: "unavailable", callable: false, failed: true })), [sellerId]);
   useEffect(() => {
     if (!eligible) return undefined;
     load(); const t = setInterval(load, 30_000);
@@ -29,10 +29,14 @@ export default function CallShopButton({ sellerId, shopName, nav }) {
   }, [eligible, load]);
 
   if (!eligible || !calls) return null;
-  // Not a callable shop at all (no shop login, or calling switched off): say nothing rather than show a dead button.
-  if (!st || (st.state === "unavailable" && !st.callsEnabled)) return null;
-  const label = LABEL[st.state] || LABEL.offline;
-  const can = st.callable && !calls.inCall;
+  // Always show the row to a signed-in customer, with the real reason when calling isn't possible (never a silently missing button).
+  const reason = !st ? "Checking availability…"
+    : st.failed ? "Couldn't check availability. Is the server updated with Vyra Call?"
+    : st.state === "unavailable" && st.callsEnabled === false ? (st.message || "Vyra Call is switched off on this server.")
+    : st.state === "unavailable" ? (st.message || "This shop can't take calls.")
+    : null;
+  const label = reason ? { text: reason, color: "#71838C" } : (LABEL[st.state] || LABEL.offline);
+  const can = !!st?.callable && !calls.inCall;
   return (
     <div className="px-4 py-3" style={{ borderTop: `1px solid ${C.border}` }}>
       <div className="flex items-center justify-between gap-3">
@@ -48,7 +52,7 @@ export default function CallShopButton({ sellerId, shopName, nav }) {
           <Phone size={15} /> Vyra Call
         </button>
       </div>
-      {!st.callable && st.state !== "unavailable" && nav && (
+      {st && !st.callable && st.state !== "unavailable" && nav && (
         <button type="button" onClick={() => nav("support")} className="mt-2 text-xs font-semibold inline-flex items-center gap-1.5" style={{ color: C.primary }}>
           <MessageCircle size={13} /> Message support instead
         </button>
