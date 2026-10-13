@@ -1,6 +1,6 @@
 /** A soft two-tone ring for the shop's incoming-call screen (Web Audio; silently does nothing if the browser blocks audio). */
 export function createRingtone() {
-  let ctx = null; let timer = null;
+  let ctx = null; let timer = null; let vibrating = false;
   const beep = (freq, at, len) => {
     const o = ctx.createOscillator(); const g = ctx.createGain();
     o.type = "sine"; o.frequency.value = freq;
@@ -18,14 +18,15 @@ export function createRingtone() {
         if (!AC) return;
         ctx = new AC(); ctx.resume?.().catch(() => {});
         cycle(); timer = setInterval(cycle, 2200);
-        globalThis.navigator?.vibrate?.([300, 150, 300]);
+        // Browsers refuse vibration before the page has been tapped; only try (and later cancel) when it's allowed.
+        if (globalThis.navigator?.userActivation?.hasBeenActive) { vibrating = globalThis.navigator.vibrate?.([300, 150, 300]) === true; }
       } catch { /* blocked */ }
     },
     stop() {
       if (timer) { clearInterval(timer); timer = null; }
       try { ctx?.close(); } catch { /* ignore */ }
       ctx = null;
-      globalThis.navigator?.vibrate?.(0);
+      if (vibrating) { globalThis.navigator?.vibrate?.(0); vibrating = false; }
     },
   };
 }
