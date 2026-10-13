@@ -63,6 +63,7 @@ export function CallsProvider({ area, nav, children }) {
   const audioRef = useRef(null);
   const ringtone = useMemo(() => createRingtone(), []);
   const uiRef = useRef(ui); uiRef.current = ui;
+  const signedInRef = useRef(signedIn); signedInRef.current = signedIn; // after sign-out there is no token, so cleanup must not call the API
 
   /* ------------------------------------------------------------------ teardown */
   const release = useCallback(() => {
@@ -217,7 +218,7 @@ export function CallsProvider({ area, nav, children }) {
       .then(() => !stopped && setDesk((d) => ({ ...d, online: true, error: null })))
       .catch((e) => !stopped && setDesk((d) => ({ ...d, online: false, error: e.code === "CALLS_DISABLED" ? e.message : e.status === 0 ? "Offline — customers can't reach you until your connection returns." : e.message })));
     beat(); const t = setInterval(beat, PRESENCE_MS);
-    return () => { stopped = true; clearInterval(t); callsApi.clearPresence().catch(() => {}); };
+    return () => { stopped = true; clearInterval(t); if (signedInRef.current) callsApi.clearPresence().catch(() => {}); };
   }, [shopDesk, accepting]);
   const setAccepting = useCallback((v) => { setAcceptingState(v); try { localStorage.setItem(PREF_KEY, v ? "1" : "0"); } catch { /* storage blocked: preference lasts this tab */ } }, []);
 
@@ -318,8 +319,8 @@ export function CallsProvider({ area, nav, children }) {
   useEffect(() => { if (ui?.phase === "ended" && ui.autoDismiss) { const t = setTimeout(() => setUi(null), 8000); return () => clearTimeout(t); } return undefined; }, [ui]);
 
   /* Signing out, or the provider going away, never leaves a microphone open. */
-  useEffect(() => { if (!signedIn) { if (r.current.id) callsApi.end(r.current.id).catch(() => {}); release(); setUi(null); setIncoming(null); } }, [signedIn, release]);
-  useEffect(() => () => { const id = r.current.id; if (id) callsApi.end(id).catch(() => {}); r.current.peer?.close(); ringtone.stop(); }, [ringtone]);
+  useEffect(() => { if (!signedIn) { release(); setUi(null); setIncoming(null); } }, [signedIn, release]);
+  useEffect(() => () => { const id = r.current.id; if (id && signedInRef.current) callsApi.end(id).catch(() => {}); r.current.peer?.close(); ringtone.stop(); }, [ringtone]);
 
   const value = useMemo(() => ({
     ui, incoming, muted, seconds, accepting, setAccepting, desk, audioBlocked, enableAudio,
