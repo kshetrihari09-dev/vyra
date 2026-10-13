@@ -286,7 +286,7 @@ function ProductView({ nav, params, product }) {
           {[
             { id: "details", label: "Details" },
             { id: "specs", label: "Specifications" },
-            { id: "reviews", label: `Reviews (${product.reviews})` },
+            { id: "reviews", label: "Reviews" },
             ...(batches.length ? [{ id: "batch", label: "Batch & expiry" }] : []),
           ].map((t) => (
             <button key={t.id} type="button" role="tab" id={`pdp-tab-${t.id}`} aria-selected={tab === t.id} aria-controls="pdp-tabpanel" onClick={() => setTab(t.id)}
@@ -321,7 +321,7 @@ function ProductView({ nav, params, product }) {
 
         {tab === "specs" && <AttributeTable product={product} />}
 
-        {tab === "reviews" && <Reviews product={product} />}
+        {tab === "reviews" && <Reviews />}
 
         {tab === "batch" && (
           <div className="rounded-2xl overflow-hidden" style={{ background: C.white, border: `1px solid ${C.border}` }}>
@@ -486,57 +486,15 @@ function Detail({ title, body }) {
   );
 }
 
-function Reviews({ product }) {
+function Reviews() {
   const C = useC();
-  const dist = [
-    { stars: 5, pct: 68 }, { stars: 4, pct: 21 }, { stars: 3, pct: 7 }, { stars: 2, pct: 3 }, { stars: 1, pct: 1 },
-  ];
-  const samples = [
-    { name: "Priya S.", stars: 5, when: "2 weeks ago", text: "Exactly as described and it arrived within the half hour. Packaging was sealed and intact." },
-    { name: "Daniel R.", stars: 4, when: "1 month ago", text: "Good value for the price. Would have liked a slightly larger pack option." },
-    { name: "Mei L.", stars: 5, when: "2 months ago", text: "Second time ordering this. Consistent quality and the reorder flow takes about ten seconds." },
-  ];
+  // No review system exists yet, so nothing is shown that a customer didn't write. (Sample reviewers and a made-up star
+  // breakdown used to be rendered here for every product.)
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl p-4 flex gap-5" style={{ background: C.white, border: `1px solid ${C.border}` }}>
-        <div className="text-center shrink-0">
-          <p className="font-extrabold text-3xl" style={{ color: C.navy }}>{product.rating}</p>
-          <div className="flex gap-0.5 justify-center my-1">
-            {[1, 2, 3, 4, 5].map((i) => <Star key={i} size={11} fill={i <= Math.round(product.rating) ? "#F5B301" : "none"} style={{ color: "#F5B301" }} />)}
-          </div>
-          <p className="text-[11px]" style={{ color: C.muted }}>{product.reviews} reviews</p>
-        </div>
-        <div className="flex-1 space-y-1.5 min-w-0">
-          {dist.map((d) => (
-            <div key={d.stars} className="flex items-center gap-2">
-              <span className="text-[11px] w-3" style={{ color: C.muted }}>{d.stars}</span>
-              <span className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: C.bg }}>
-                <span className="block h-full rounded-full" style={{ width: `${d.pct}%`, background: C.primary }} />
-              </span>
-              <span className="text-[11px] w-8 text-right" style={{ color: C.muted }}>{d.pct}%</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      {samples.map((r) => (
-        <div key={r.name} className="rounded-2xl p-4" style={{ background: C.white, border: `1px solid ${C.border}` }}>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: C.mint, color: C.primary }}>
-              {r.name.slice(0, 1)}
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold" style={{ color: C.navy }}>{r.name}</p>
-              <div className="flex items-center gap-1.5">
-                <div className="flex gap-0.5">
-                  {[1, 2, 3, 4, 5].map((i) => <Star key={i} size={9} fill={i <= r.stars ? "#F5B301" : "none"} style={{ color: "#F5B301" }} />)}
-                </div>
-                <span className="text-[10px]" style={{ color: C.muted }}>{r.when}</span>
-              </div>
-            </div>
-          </div>
-          <p className="text-sm leading-relaxed" style={{ color: C.muted }}>{r.text}</p>
-        </div>
-      ))}
+    <div className="rounded-2xl p-6 text-center" style={{ background: C.white, border: `1px solid ${C.border}` }}>
+      <Star size={22} style={{ color: C.muted }} className="mx-auto mb-2" />
+      <p className="text-sm font-bold" style={{ color: C.navy }}>No reviews yet</p>
+      <p className="text-xs mt-1" style={{ color: C.muted }}>Reviews from customers who bought this product will appear here.</p>
     </div>
   );
 }
