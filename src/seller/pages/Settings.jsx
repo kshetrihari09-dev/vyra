@@ -6,6 +6,7 @@ import { useS } from "../components/tokens.js";
 import { Btn, Field, Input, Notice, NumberInput, PageHeader, Panel, Tabs, Textarea, Toggle } from "../components/kit.jsx";
 import { shrink } from "../components/ImageUploader.jsx";
 import { Icon } from "../../components/shared/Icon.jsx";
+import { sellersApi } from "../../services/api/sellersApi.js";
 import { TONE } from "../../theme.js";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -15,9 +16,9 @@ const DEFAULT_HOURS = Object.fromEntries(DAYS.map((d) => [d, { open: "09:00", cl
    anything they've saved since. Nothing here is invented. */
 function initial(seller, application) {
   const shop = application?.shop || {}, ops = application?.operations || {};
-  const saved = seller.settings || {};
+  const saved = seller.settings?.saved ? seller.settings : {}; // a shop that never saved keeps its approved-application values
   return {
-    name: seller.name,
+    name: saved.name ?? seller.name,
     description: saved.description ?? shop.description ?? "",
     logo: saved.logo ?? shop.logo ?? null,
     banner: saved.banner ?? shop.banner ?? null,
@@ -28,7 +29,7 @@ function initial(seller, application) {
     landmark: saved.landmark ?? shop.landmark ?? "",
     hours: saved.hours ?? ops.hours ?? DEFAULT_HOURS,
     delivery: { available: ops.deliveryAvailable ?? true, pickup: ops.pickupAvailable ?? true, radiusKm: ops.deliveryRadiusKm ?? 5, fee: ops.deliveryFee ?? 0, freeAbove: ops.freeDeliveryAbove ?? 0, minOrder: ops.minOrderAmount ?? 0, prepMinutes: ops.prepTimeMinutes ?? 30, ...(saved.delivery || {}) },
-    payments: { cod: true, card: true, upi: true, netbanking: false, payoutMethod: seller.payoutMethod || "", ...(saved.payments || {}) },
+    payments: { cod: true, card: true, upi: true, netbanking: false, ...(saved.payments || {}) },
     tax: { registration: "", inclusive: true, defaultRate: 0, ...(saved.tax || {}) },
     notifications: { newOrder: true, lowStock: true, payout: true, reviews: false, email: true, sms: false, ...(saved.notifications || {}) },
   };
@@ -72,6 +73,7 @@ export default function Settings() {
   const [d, setD] = useState(base);
   const [tab, setTab] = useState("profile");
   const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
   useEffect(() => { setD(base); setErrors({}); }, [base]);
   const dirty = JSON.stringify(d) !== JSON.stringify(base);
   const canWrite = seller.status === "active";
@@ -80,25 +82,35 @@ export default function Settings() {
   const nest = (key, patch) => setD((p) => ({ ...p, [key]: { ...p[key], ...patch } }));
   const setDay = (day, patch) => nest("hours", { [day]: { ...d.hours[day], ...patch } });
 
-  const save = () => {
+  const save = async () => {
     const e = {};
     if (!d.name.trim()) e.name = "Enter your shop name.";
     if (d.email && !/^\S+@\S+\.\S+$/.test(d.email)) e.email = "Enter a valid email address.";
     if (d.phone && d.phone.replace(/\D/g, "").length < 7) e.phone = "Enter a valid phone number.";
     DAYS.forEach((k) => { const h = d.hours[k]; if (!h.closed && (!h.open || !h.close || h.open >= h.close)) e[`hours-${k}`] = "Closing time must be after opening time."; });
     if (!(d.tax.defaultRate >= 0 && d.tax.defaultRate <= 100)) e.taxRate = "Enter a rate between 0 and 100.";
+    if (!(d.payments.cod || d.payments.card || d.payments.upi || d.payments.netbanking)) e.payments = "Accept at least one payment method.";
     setErrors(e);
-    if (Object.keys(e).length) { toast("Fix the highlighted fields", "danger"); if (e.name || e.email || e.phone) setTab(e.name ? "profile" : "contact"); else if (Object.keys(e).some((k) => k.startsWith("hours"))) setTab("hours"); else setTab("tax"); return; }
-    const { name, ...rest } = d;
-    dispatch({ type: "SELLER_UPDATE", seller: { ...seller, name: name.trim(), contactEmail: d.email || seller.contactEmail, contactPhone: d.phone, payoutMethod: d.payments.payoutMethod || seller.payoutMethod, settings: rest } });
-    dispatch({ type: "AUDIT", entry: { actor: `${seller.name} (seller)`, action: "Shop settings updated", detail: name.trim() } });
-    toast("Shop settings saved");
+    if (Object.keys(e).length) { toast(e.payments || "Fix the highlighted fields", "danger"); if (e.name || e.email || e.phone) setTab(e.name ? "profile" : "contact"); else if (Object.keys(e).some((k) => k.startsWith("hours"))) setTab("hours"); else if (e.payments) setTab("payments"); else setTab("tax"); return; }
+    setSaving(true);
+    try {
+      // Sent exactly as the server validates it; the server returns what it stored.
+      const saved = await sellersApi.saveSettings(seller.id, {
+        name: d.name.trim(), description: d.description.trim(), logo: d.logo, banner: d.banner,
+        phone: d.phone.trim(), email: d.email.trim(), address: d.address, city: d.city, landmark: d.landmark,
+        hours: d.hours, delivery: d.delivery, payments: d.payments, tax: d.tax, notifications: d.notifications,
+      });
+      dispatch({ type: "SELLER_UPDATE", seller: { ...seller, name: saved.name, contactEmail: saved.email || seller.contactEmail, contactPhone: saved.phone, settings: saved } });
+      toast("Shop settings saved");
+    } catch (err) {
+      toast(err.details?.[0]?.message || err.message || "Couldn't save your settings. Try again.", "danger");
+    } finally { setSaving(false); }
   };
 
   return (
     <div className="pb-20">
       <PageHeader title="Shop settings" description="How your shop appears to customers and how it runs." />
-      <div className="mb-4"><Notice tone="info">Your shop name, description, logo and banner are saved to your shop profile. Delivery, payment and tax preferences are saved here too, but customer checkout doesn't apply them yet.</Notice></div>
+      <div className="mb-4"><Notice tone="info">Everything here is saved to your shop on the server. Each tab says what customers and checkout actually use today.</Notice></div>
       <Panel padded={false}>
         <div className="px-4 pt-1"><Tabs value={tab} onChange={setTab} items={[
           { id: "profile", label: "Profile" }, { id: "contact", label: "Contact & address" }, { id: "hours", label: "Business hours" },
@@ -126,6 +138,7 @@ export default function Settings() {
           )}
           {tab === "hours" && (
             <div className="space-y-2">
+              <p className="text-xs mb-2" style={{ color: s.muted }}>Saved to your shop profile. Orders are not blocked outside these hours yet.</p>
               {DAYS.map((day) => {
                 const h = d.hours[day];
                 return (
@@ -147,6 +160,7 @@ export default function Settings() {
           )}
           {tab === "delivery" && (
             <div>
+              <div className="mb-3"><Notice tone="warn"><strong>Minimum order</strong> is enforced at checkout for your items. The other delivery settings are saved but not used yet: delivery is currently priced from the distance to the Vyra store branch, not per shop.</Notice></div>
               <Toggle label="Offer delivery" hint="Customers can have orders brought to them" on={d.delivery.available} onChange={(v) => nest("delivery", { available: v })} />
               <Toggle label="Offer pickup" hint="Customers can collect orders from your shop" on={d.delivery.pickup} onChange={(v) => nest("delivery", { pickup: v })} />
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-3">
@@ -161,15 +175,17 @@ export default function Settings() {
           {tab === "payments" && (
             <div>
               <p className="text-sm font-medium mb-1" style={{ color: s.text }}>Accepted payment methods</p>
+              <p className="text-xs mb-2" style={{ color: errors.payments ? TONE.danger : s.muted }}>{errors.payments || "Applied at checkout: a customer whose cart includes your items can only pay with the methods you accept."}</p>
               <Toggle label="Cash on delivery" on={d.payments.cod} onChange={(v) => nest("payments", { cod: v })} />
               <Toggle label="Card" on={d.payments.card} onChange={(v) => nest("payments", { card: v })} />
               <Toggle label="UPI / wallet" on={d.payments.upi} onChange={(v) => nest("payments", { upi: v })} />
               <Toggle label="Net banking" on={d.payments.netbanking} onChange={(v) => nest("payments", { netbanking: v })} />
-              <div className="mt-4 max-w-sm"><Field label="Payout method" hint="Where your earnings are sent"><Input value={d.payments.payoutMethod} onChange={(e) => nest("payments", { payoutMethod: e.target.value })} /></Field></div>
+              <div className="mt-4 max-w-sm"><Field label="Payout method" hint="Set up with Vyra when your shop was approved. Contact support to change it."><Input value={seller.payoutMethod || "Not yet set up"} readOnly disabled /></Field></div>
             </div>
           )}
           {tab === "tax" && (
             <div>
+              <p className="text-xs mb-3" style={{ color: s.muted }}>The default rate pre-fills the tax field when you add a product. The registration number and "prices include tax" are saved to your profile; checkout still uses each product's own tax rate.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Tax registration number" hint="PAN, VAT or GST number"><Input value={d.tax.registration} onChange={(e) => nest("tax", { registration: e.target.value })} /></Field>
                 <Field label="Default tax rate for new products" error={errors.taxRate}><NumberInput step="0.1" suffix="%" value={d.tax.defaultRate} onChange={(n) => nest("tax", { defaultRate: n })} error={errors.taxRate} /></Field>
@@ -180,13 +196,13 @@ export default function Settings() {
           {tab === "notifications" && (
             <div>
               <p className="text-sm font-medium" style={{ color: s.text }}>Tell me about</p>
-              <Toggle label="New orders" on={d.notifications.newOrder} onChange={(v) => nest("notifications", { newOrder: v })} />
-              <Toggle label="Low stock" on={d.notifications.lowStock} onChange={(v) => nest("notifications", { lowStock: v })} />
-              <Toggle label="Payouts" on={d.notifications.payout} onChange={(v) => nest("notifications", { payout: v })} />
-              <Toggle label="Customer reviews" on={d.notifications.reviews} onChange={(v) => nest("notifications", { reviews: v })} />
+              <Toggle label="New orders" hint="We notify you when an order includes your items" on={d.notifications.newOrder} onChange={(v) => nest("notifications", { newOrder: v })} />
+              <Toggle label="Low stock" hint="Saved — low-stock alerts aren't sent yet" on={d.notifications.lowStock} onChange={(v) => nest("notifications", { lowStock: v })} />
+              <Toggle label="Payouts" hint="When a payout is paid or declined" on={d.notifications.payout} onChange={(v) => nest("notifications", { payout: v })} />
+              <Toggle label="Customer reviews" hint="Saved — reviews aren't available yet" on={d.notifications.reviews} onChange={(v) => nest("notifications", { reviews: v })} />
               <p className="text-sm font-medium mt-4" style={{ color: s.text }}>Send by</p>
-              <Toggle label="Email" on={d.notifications.email} onChange={(v) => nest("notifications", { email: v })} />
-              <Toggle label="SMS" on={d.notifications.sms} onChange={(v) => nest("notifications", { sms: v })} />
+              <Toggle label="Email" hint="Applies to your account's email notifications" on={d.notifications.email} onChange={(v) => nest("notifications", { email: v })} />
+              <Toggle label="SMS" hint="Applies to your account's text notifications" on={d.notifications.sms} onChange={(v) => nest("notifications", { sms: v })} />
             </div>
           )}
         </div>
@@ -194,7 +210,7 @@ export default function Settings() {
 
       <div className="fixed bottom-14 md:bottom-0 inset-x-0 md:left-16 lg:left-60 z-20 px-4 md:px-6 py-3 flex items-center justify-between gap-3" style={{ background: s.panel, borderTop: `1px solid ${s.line}`, opacity: dirty ? 1 : 0, pointerEvents: dirty ? "auto" : "none", transition: "opacity .15s", paddingBottom: "max(.75rem, env(safe-area-inset-bottom))" }} aria-hidden={!dirty}>
         <p className="text-sm" style={{ color: s.muted }}>You have unsaved changes</p>
-        <div className="flex gap-2"><Btn onClick={() => { setD(base); setErrors({}); }}>Discard</Btn><Btn variant="primary" onClick={save} disabled={!canWrite}>Save changes</Btn></div>
+        <div className="flex gap-2"><Btn onClick={() => { setD(base); setErrors({}); }}>Discard</Btn><Btn variant="primary" onClick={save} disabled={!canWrite || saving}>{saving ? "Saving…" : "Save changes"}</Btn></div>
       </div>
     </div>
   );

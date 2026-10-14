@@ -5,6 +5,7 @@ export const sellerFromApi = (s) => ({
   id: s.id, name: s.name, firstParty: !!s.firstParty, status: s.status, commissionRate: s.commissionRate,
   rating: s.rating, reviews: s.reviewsCount, joinedAt: (s.joinedAt || "").slice(0, 10),
   payoutMethod: s.payoutMethodLabel || "Not yet set up", contactEmail: s.contactEmail || "", brands: [],
+  ...(s.settings ? { settings: s.settings } : {}), // only the shop's own endpoint carries its saved settings
 });
 
 /** Server payout DTO -> the local shape Payouts.jsx renders ({ id, sellerId, amount, at, method, status }). */
@@ -13,6 +14,8 @@ export const payoutFromApi = (p) => ({ id: p.id, sellerId: p.sellerId, amount: p
 export const sellersApi = {
   list: async (params = {}) => (await api.get("/sellers", { pageSize: 100, ...params })).sellers.map(sellerFromApi),
   mine: async () => { const { seller } = await api.get("/sellers/mine"); return seller ? sellerFromApi(seller) : null; },
+  /** The shop owner saves their settings; returns what the server stored (validated + normalised). */
+  saveSettings: async (id, payload) => (await api.put(`/sellers/${id}/settings`, payload)).settings,
   setStatus: async (id, status) => sellerFromApi((await api.post(`/sellers/${id}/status`, { status })).seller),
   balance: async (id) => (await api.get(`/sellers/${id}/balance`)).availableBalance,
   settlement: async (id) => api.get(`/sellers/${id}/settlement`),
