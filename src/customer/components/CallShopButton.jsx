@@ -24,8 +24,10 @@ export default function CallShopButton({ sellerId, shopName, nav }) {
   const load = useCallback(() => callsApi.shopStatus(sellerId).then(setSt).catch(() => setSt({ state: "unavailable", callable: false, failed: true })), [sellerId]);
   useEffect(() => {
     if (!eligible) return undefined;
-    load(); const t = setInterval(load, 30_000);
-    return () => clearInterval(t);
+    load(); const t = setInterval(load, 10_000);
+    const onVisible = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVisible); };
   }, [eligible, load]);
 
   // Guests see the option too, with a way in; staff accounts and a shop's own owner see nothing (calls are customer -> shop only).

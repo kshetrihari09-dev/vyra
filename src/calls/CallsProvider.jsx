@@ -218,8 +218,17 @@ export function CallsProvider({ area, nav, children }) {
       .then(() => !stopped && setDesk((d) => ({ ...d, online: true, error: null })))
       .catch((e) => !stopped && setDesk((d) => ({ ...d, online: false, error: e.code === "CALLS_DISABLED" ? e.message : e.status === 0 ? "Offline — customers can't reach you until your connection returns." : e.message })));
     beat(); const t = setInterval(beat, PRESENCE_MS);
-    return () => { stopped = true; clearInterval(t); if (signedInRef.current) callsApi.clearPresence().catch(() => {}); };
+    // A tab coming back to the foreground re-announces immediately (background tabs throttle timers).
+    const onVisible = () => { if (document.visibilityState === "visible") beat(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { stopped = true; clearInterval(t); document.removeEventListener("visibilitychange", onVisible); };
   }, [shopDesk, accepting]);
+  // Going offline is done ONLY when leaving the shop dashboard (or signing out) — never as part of the heartbeat's own re-runs,
+  // where a "go offline" request could arrive after the next "go online" one and wipe it.
+  useEffect(() => {
+    if (!shopDesk) return undefined;
+    return () => { if (signedInRef.current) callsApi.clearPresence().catch(() => {}); };
+  }, [shopDesk]);
   const setAccepting = useCallback((v) => { setAcceptingState(v); try { localStorage.setItem(PREF_KEY, v ? "1" : "0"); } catch { /* storage blocked: preference lasts this tab */ } }, []);
 
   /* ------------------------------------------------------------------ ringing sound for the shop */
