@@ -2,9 +2,9 @@ import { api, refreshSession, setAccessToken } from "./client.js";
 
 /** Auth endpoints. Every function returns plain data or throws ApiError (see client.js). */
 export const authApi = {
-  /** Step 1 of sign-up: validates and texts a code. → { challengeId, expiresInSeconds, devHint? } */
-  registerStart: ({ name, mobile, email, password }) =>
-    api.post("/auth/register/start", { name, mobile, ...(email ? { email } : {}), password }, { auth: false }),
+  /** Step 1 of sign-up: validates and sends a code by SMS (default) or email. → { challengeId, expiresInSeconds, channel, devHint? } */
+  registerStart: ({ name, mobile, email, password, channel }) =>
+    api.post("/auth/register/start", { name, mobile, ...(email ? { email } : {}), password, ...(channel === "email" ? { channel } : {}) }, { auth: false }),
 
   /** Step 2: verify the code; the account is created and signed in. → { user } */
   async registerVerify({ challengeId, code }) {

@@ -22,6 +22,7 @@ export default function Auth({ nav }) {
 
   const hero = ["cold-brew-coffee", "vitamin-c-serum", "wireless-earbuds", "paracetamol-500"].map((id) => products.find((p) => p.id === id)).filter(Boolean);
 
+  const [channel, setChannel] = useState("sms"); // where the sign-up code goes: "sms" | "email"
   const [challenge, setChallenge] = useState(null); // { id, devHint } from POST /auth/register/start
   const [busy, setBusy] = useState(false);
 
@@ -32,20 +33,22 @@ export default function Auth({ nav }) {
   };
 
   const requestCode = async () => {
-    const data = await auth.registerStart({ name: form.name.trim(), mobile: form.mobile, email: form.email.trim(), password: form.password });
+    const data = await auth.registerStart({ name: form.name.trim(), mobile: form.mobile, email: form.email.trim(), password: form.password, channel });
     setChallenge({ id: data.challengeId, devHint: !!data.devHint });
   };
 
   const submitRegister = async () => {
     // Format checks give instant feedback; whether the number/email is already taken is decided by the server.
     const v = validateAccountFields(form, { mobiles: [], emails: [] });
-    setErrors(v.errors);
-    if (!v.ok) return;
+    const errs = { ...v.errors };
+    if (channel === "email" && !isEmail(form.email.trim())) errs.email = "Enter your email to get the code by email";
+    setErrors(errs);
+    if (!v.ok || errs.email) return;
     setBusy(true);
     try {
       await requestCode();
       setMode("otp");
-      toast(`Verification code sent to ${form.mobile}`);
+      toast(`Verification code sent to ${channel === "email" ? form.email.trim() : form.mobile}`);
     } catch (err) {
       showApiError(err);
     } finally {
@@ -157,13 +160,24 @@ export default function Auth({ nav }) {
         {mode === "register" && (
           <>
             <h1 className="font-extrabold text-xl text-center" style={{ color: C.navy }}>Create your account</h1>
-            <p className="text-sm text-center mt-1 mb-6" style={{ color: C.muted }}>We'll verify your mobile number with a one-time code.</p>
+            <p className="text-sm text-center mt-1 mb-6" style={{ color: C.muted }}>We'll send a one-time code to verify your account.</p>
             <div className="space-y-4">
               {field("name", "Full name", "Sabina Karki")}
               {field("mobile", "Mobile number", "98XXXXXXXX", "tel")}
               {field("email", "Email (optional)", "you@example.com", "email")}
               {field("password", "Password", "••••••••", "password")}
               {field("confirmPassword", "Confirm password", "••••••••", "password")}
+              <div role="group" aria-label="Send my code by">
+                <p className="text-xs font-semibold mb-1.5" style={{ color: C.navy }}>Send my code by</p>
+                <div className="flex gap-2">
+                  {[["sms", "Text message (SMS)"], ["email", "Email"]].map(([v, label]) => (
+                    <button key={v} type="button" aria-pressed={channel === v} onClick={() => setChannel(v)}
+                      className="flex-1 rounded-full py-2 text-sm font-semibold"
+                      style={{ background: channel === v ? C.primary : C.white, color: channel === v ? "#fff" : C.navy, border: `1px solid ${channel === v ? C.primary : C.border}` }}>{label}</button>
+                  ))}
+                </div>
+                {channel === "email" && <p className="text-[11px] mt-1.5" style={{ color: C.muted }}>Fill in your email above. We'll email the code there.</p>}
+              </div>
               <PillButton full size="lg" onClick={submitRegister} disabled={busy}>Send verification code</PillButton>
               <button onClick={() => setMode("welcome")} className="w-full text-center text-sm font-bold" style={{ color: C.primary }}>Back</button>
             </div>
@@ -171,7 +185,7 @@ export default function Auth({ nav }) {
         )}
 
         {mode === "otp" && (
-          <OtpStep target={form.mobile} devHint={challenge?.devHint} onVerify={verifyCode} onResend={requestCode} onChangeNumber={() => setMode("register")} />
+          <OtpStep target={channel === "email" ? form.email.trim() : form.mobile} devHint={challenge?.devHint} onVerify={verifyCode} onResend={requestCode} onChangeNumber={() => setMode("register")} />
         )}
       </div>
     </div>
