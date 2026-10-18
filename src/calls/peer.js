@@ -21,13 +21,14 @@ export class CallError extends Error {
 const DISCONNECT_GRACE_MS = 6_000; // a brief wifi/cell blip heals itself; past this we restart ICE
 const MAX_ICE_RESTARTS = 3;
 
-export function createCallPeer({ role, iceServers, onSignal, onState, onRemoteStream, deps = {} }) {
+export function createCallPeer({ role, iceServers: initialIce = [], onSignal, onState, onRemoteStream, deps = {} }) {
   const RTCPeer = deps.RTCPeerConnection ?? globalThis.RTCPeerConnection;
   const nav = deps.navigator ?? globalThis.navigator;
   const secure = deps.isSecureContext ?? globalThis.isSecureContext ?? true;
   const setT = deps.setTimeout ?? globalThis.setTimeout.bind(globalThis);
   const clearT = deps.clearTimeout ?? globalThis.clearTimeout.bind(globalThis);
 
+  let iceServers = initialIce; // can be supplied after creation, so the mic prompt and the ICE-server fetch run in parallel
   let pc = null; let stream = null; let closed = false; let muted = false;
   let remoteSet = false; const pending = []; let restarts = 0; let graceTimer = null; let lastState = "new";
 
@@ -146,6 +147,7 @@ export function createCallPeer({ role, iceServers, onSignal, onState, onRemoteSt
   }
 
   return {
+    setIceServers(list) { if (!pc) iceServers = list; },
     acquireMic, connect, makeOffer, handleOffer, handleAnswer, handleIce, setMuted, close,
     get muted() { return muted; },
     get closed() { return closed; },

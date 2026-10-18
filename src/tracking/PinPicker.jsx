@@ -5,19 +5,28 @@ import { PillButton, InlineNotice } from "../components/shared/ui.jsx";
 import { MapPin, X } from "../components/shared/Icon.jsx";
 import { DEFAULT_CENTER, MAP_TOKEN } from "./config.js";
 import { useGeocode } from "./useGeocode.js";
+import { describeAccuracy, inNepal, locateAccurately, FAIR_M } from "./geo.js";
+import { searchPlaces } from "./places.js";
 
 const PinMap = lazy(() => import("./PinMap.jsx"));
 
-/** Browser geolocation as a promise. Called only from a button press, so the permission prompt always has an obvious reason. */
-export function currentPosition() {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(Object.assign(new Error("This device can't share its location."), { code: 0 }));
-    navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      (err) => reject(Object.assign(new Error(err.code === 1 ? "Location permission is blocked. Allow it in your browser settings, or drop the pin on the map instead." : "Couldn't get your location. Try again, or drop the pin on the map."), { code: err.code })),
-      { enableHighAccuracy: true, timeout: 12_000, maximumAge: 30_000 });
-  });
+/**
+ * The device's position as a promise → { lat, lng, accuracy }. Called only from a button press, so the permission prompt always has an
+ * obvious reason. It waits a few seconds for a GOOD fix instead of trusting the first (often coarse, sometimes cached) one;
+ * `onProgress` reports improvements so the button can say how accurate it is so far.
+ */
+export function currentPosition({ onProgress } = {}) {
+  return locateAccurately({ onProgress }).promise;
 }
+
+const accuracyNote = (accuracy) => {
+  const a = describeAccuracy(accuracy);
+  if (a.level === "good") return { tone: "ok", text: `Location found (${a.label}).` };
+  if (a.level === "fair") return { tone: "warn", text: `Location found (${a.label}). Check the pin is at your door and drag it if not.` };
+  if (a.level === "poor") return { tone: "warn", text: `Your device only found an approximate location (${a.label}). Please drag the pin to your door.` };
+  return null;
+};
+const OUTSIDE = "This pin is outside Nepal, so it's probably not where you meant. Move it, or check your device location.";
 
 /** Full-screen map for fine-tuning the delivery pin. Rendered in a portal so it isn't clipped by the sheet the form lives in. */
 export function PinPickerModal({ value, addressText, onConfirm, onClose }) {
@@ -26,6 +35,10 @@ export function PinPickerModal({ value, addressText, onConfirm, onClose }) {
   const [focus, setFocus] = useState(null);
   const [error, setError] = useState("");
   const [locating, setLocating] = useState(false);
+  const [progress, setProgress] = useState(null);
+  const [note, setNote] = useState(null);
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState([]);
   const guess = useGeocode(addressText, { enabled: !value && !!addressText });
   useEffect(() => { if (!value && guess) setFocus({ ...guess, n: 1 }); }, [guess?.lat, guess?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -36,11 +49,25 @@ export function PinPickerModal({ value, addressText, onConfirm, onClose }) {
   }, [onClose]);
 
   const locate = async () => {
-    setLocating(true); setError("");
-    try { const p = await currentPosition(); setPoint(p); setFocus({ ...p, n: Date.now() }); }
-    catch (err) { setError(err.message); }
-    finally { setLocating(false); }
+    setLocating(true); setError(""); setNote(null); setProgress(null);
+    try {
+      const p = await currentPosition({ onProgress: (b) => setProgress(b.accuracy) });
+      setPoint({ lat: p.lat, lng: p.lng }); setFocus({ lat: p.lat, lng: p.lng, n: Date.now() }); setNote(accuracyNote(p.accuracy));
+    } catch (err) { if (err.code !== -1) setError(err.message); }
+    finally { setLocating(false); setProgress(null); }
   };
+
+  // Search by place or address (Nepal only); picking a result drops the pin there and zooms in.
+  useEffect(() => {
+    const text = q.trim();
+    if (text.length < 3) { setResults([]); return undefined; }
+    const ac = new AbortController();
+    const t = setTimeout(() => { searchPlaces(text, { near: point || guess || null, signal: ac.signal }).then(setResults); }, 300);
+    return () => { clearTimeout(t); ac.abort(); };
+  }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pick = (r) => { setPoint({ lat: r.lat, lng: r.lng }); setFocus({ lat: r.lat, lng: r.lng, n: Date.now() }); setResults([]); setQ(r.name); setNote(null); setError(""); };
+  const moved = (p) => { setPoint(p); setNote(null); };
+  const outside = point && !inNepal(point);
 
   return createPortal(
     <div role="dialog" aria-modal="true" aria-label="Set delivery pin" className="fixed inset-0 z-[90] flex flex-col" style={{ background: C.bg }}>
@@ -50,14 +77,25 @@ export function PinPickerModal({ value, addressText, onConfirm, onClose }) {
       </div>
       <div className="flex-1 relative min-h-0">
         <Suspense fallback={<div className="absolute inset-0 animate-pulse" style={{ background: C.mint }} />}>
-          <PinMap className="absolute inset-0" point={point} focus={focus || (!value ? DEFAULT_CENTER : null)} onPoint={setPoint} />
+          <PinMap className="absolute inset-0" point={point} focus={focus || (!value ? DEFAULT_CENTER : null)} onPoint={moved} />
         </Suspense>
-        {!point && <p className="absolute left-1/2 -translate-x-1/2 top-3 z-10 text-xs font-bold px-3 py-1.5 rounded-full bg-white shadow" style={{ color: C.navy }}>Tap the map where we should deliver</p>}
+        <div className="absolute left-3 right-14 top-3 z-10">
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search your street, area or landmark" aria-label="Search for a place"
+            className="w-full rounded-full px-4 h-10 text-sm shadow outline-none" style={{ background: "#fff", color: C.navy, border: `1px solid ${C.border}` }} />
+          {results.length > 0 && (
+            <ul className="mt-1 rounded-2xl overflow-hidden shadow max-h-56 overflow-y-auto" style={{ background: "#fff", border: `1px solid ${C.border}` }} role="listbox">
+              {results.map((r) => <li key={r.id}><button type="button" role="option" onClick={() => pick(r)} className="w-full text-left px-4 py-2.5 text-sm" style={{ color: C.navy, borderBottom: `1px solid ${C.border}` }}>{r.name}</button></li>)}
+            </ul>
+          )}
+        </div>
+        {!point && <p className="absolute left-1/2 -translate-x-1/2 top-16 z-10 text-xs font-bold px-3 py-1.5 rounded-full bg-white shadow" style={{ color: C.navy }}>Tap the map where we should deliver</p>}
       </div>
       <div className="p-4 space-y-3 shrink-0" style={{ background: C.white, borderTop: `1px solid ${C.border}` }}>
         {error && <InlineNotice tone="warn">{error}</InlineNotice>}
+        {outside && <InlineNotice tone="warn">{OUTSIDE}</InlineNotice>}
+        {!error && !outside && note && <InlineNotice tone={note.tone}>{note.text}</InlineNotice>}
         <div className="flex gap-2">
-          <PillButton variant="subtle" onClick={locate} disabled={locating}><MapPin size={14} aria-hidden="true" /> {locating ? "Locating…" : "Use my location"}</PillButton>
+          <PillButton variant="subtle" onClick={locate} disabled={locating}><MapPin size={14} aria-hidden="true" /> {locating ? (progress ? `Improving… ${describeAccuracy(progress).label}` : "Locating…") : "Use my location"}</PillButton>
           <PillButton className="flex-1" disabled={!point} onClick={() => onConfirm(point)}>Confirm pin</PillButton>
         </div>
       </div>
@@ -70,11 +108,17 @@ export function PinField({ value, onChange, addressText }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [note, setNote] = useState(null);
+  const [progress, setProgress] = useState(null);
   const has = value?.lat != null && value?.lng != null;
   const useMine = async () => {
-    setBusy(true); setError("");
-    try { onChange(await currentPosition()); } catch (err) { setError(err.message); } finally { setBusy(false); }
+    setBusy(true); setError(""); setNote(null); setProgress(null);
+    try {
+      const p = await currentPosition({ onProgress: (b) => setProgress(b.accuracy) });
+      onChange({ lat: p.lat, lng: p.lng }); setNote(accuracyNote(p.accuracy)); // only lat/lng are saved with the address
+    } catch (err) { setError(err.message); } finally { setBusy(false); setProgress(null); }
   };
+  const outside = has && !inNepal(value);
   return (
     <div className="rounded-2xl p-3.5" style={{ background: C.white, border: `1px solid ${C.border}` }}>
       <div className="flex items-start gap-2.5">
@@ -87,11 +131,13 @@ export function PinField({ value, onChange, addressText }) {
         </div>
       </div>
       <div className="flex flex-wrap gap-2 mt-3">
-        <PillButton size="sm" variant="subtle" onClick={useMine} disabled={busy}>{busy ? "Locating…" : "Use my current location"}</PillButton>
+        <PillButton size="sm" variant="subtle" onClick={useMine} disabled={busy}>{busy ? (progress ? `Improving… ${describeAccuracy(progress).label}` : "Locating…") : "Use my current location"}</PillButton>
         {MAP_TOKEN && <PillButton size="sm" variant="subtle" onClick={() => setOpen(true)}>{has ? "Adjust on map" : "Choose on map"}</PillButton>}
         {has && <button type="button" className="text-xs font-bold underline px-2" style={{ color: C.muted }} onClick={() => onChange(null)}>Remove</button>}
       </div>
       {error && <p className="text-xs mt-2 font-semibold" role="alert" style={{ color: "#c92a2a" }}>{error}</p>}
+      {!error && outside && <p className="text-xs mt-2 font-semibold" role="alert" style={{ color: "#c92a2a" }}>{OUTSIDE}</p>}
+      {!error && !outside && note && <p className="text-xs mt-2 font-semibold" style={{ color: note.tone === "ok" ? C.primary : "#a15c00" }}>{note.text}</p>}
       {open && <PinPickerModal value={has ? { lat: value.lat, lng: value.lng } : null} addressText={addressText} onClose={() => setOpen(false)} onConfirm={(p) => { onChange(p); setOpen(false); }} />}
     </div>
   );

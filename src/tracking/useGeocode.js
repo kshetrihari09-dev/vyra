@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { MAP_TOKEN } from "./config.js";
+import { geocodeUrl, parsePlaces } from "./places.js";
 
 const cache = new Map();
 
@@ -14,12 +15,10 @@ export function useGeocode(text, { enabled = true, near = null } = {}) {
     if (!enabled || !text || !MAP_TOKEN) { setPoint(null); return undefined; }
     if (cache.has(text)) { setPoint(cache.get(text)); return undefined; }
     const ac = new AbortController();
-    const prox = near ? `&proximity=${near.lng},${near.lat}` : "";
-    fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(text)}.json?limit=1&access_token=${encodeURIComponent(MAP_TOKEN)}${prox}`, { signal: ac.signal })
+    fetch(geocodeUrl(text, { near }), { signal: ac.signal })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => {
-        const c = j?.features?.[0]?.center;
-        const p = c ? { lat: c[1], lng: c[0] } : null;
+        const p = parsePlaces(j)[0] ?? null; // Nepal-only (see geocodeUrl), so a namesake abroad can't win
         cache.set(text, p); setPoint(p);
       })
       .catch(() => {});

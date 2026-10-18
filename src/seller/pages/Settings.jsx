@@ -67,7 +67,7 @@ function ImagePick({ label, hint, value, onChange, wide }) {
 export default function Settings() {
   const s = useS();
   const { seller } = useShop();
-  const { shopApplications, dispatch, toast } = useApp();
+  const { shopApplications, dispatch, toast, session } = useApp();
   const application = shopApplications.find((a) => a.sellerId === seller.id);
   const base = useMemo(() => initial(seller, application), [seller, application]);
   const [d, setD] = useState(base);
@@ -76,7 +76,9 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   useEffect(() => { setD(base); setErrors({}); }, [base]);
   const dirty = JSON.stringify(d) !== JSON.stringify(base);
-  const canWrite = seller.status === "active";
+  // Only the shop's own owner can save (the server enforces it); anyone else previewing the dashboard sees why instead of a failed save.
+  const isOwner = session?.shopOwnerSellerId === seller.id;
+  const canWrite = seller.status === "active" && isOwner;
 
   const set = (patch) => setD((p) => ({ ...p, ...patch }));
   const nest = (key, patch) => setD((p) => ({ ...p, [key]: { ...p[key], ...patch } }));
@@ -103,13 +105,14 @@ export default function Settings() {
       dispatch({ type: "SELLER_UPDATE", seller: { ...seller, name: saved.name, contactEmail: saved.email || seller.contactEmail, contactPhone: saved.phone, settings: saved } });
       toast("Shop settings saved");
     } catch (err) {
-      toast(err.details?.[0]?.message || err.message || "Couldn't save your settings. Try again.", "danger");
+      toast(err.status === 404 ? "These settings can only be changed from the shop owner's own account. Sign in with that account." : (err.details?.[0]?.message || err.message || "Couldn't save your settings. Try again."), "danger");
     } finally { setSaving(false); }
   };
 
   return (
     <div className="pb-20">
       <PageHeader title="Shop settings" description="How your shop appears to customers and how it runs." />
+      {!isOwner && <div className="mb-4"><Notice tone="warn">You're viewing this shop but you're not signed in as its owner, so you can't change its settings. Sign in with the shop owner's account to edit them.</Notice></div>}
       <div className="mb-4"><Notice tone="info">Everything here is saved to your shop on the server. Each tab says what customers and checkout actually use today.</Notice></div>
       <Panel padded={false}>
         <div className="px-4 pt-1"><Tabs value={tab} onChange={setTab} items={[

@@ -250,10 +250,11 @@ export function CallsProvider({ area, nav, children }) {
     setUi({ role: "customer", phase: "preparing", peerName: shopName, sellerId });
     let peer = null;
     try {
-      const ice = await callsApi.ice();                 // nothing rings yet; also tells us early if calling is switched off
-      if (cancelled()) return;
-      peer = await makePeer("customer", ice.iceServers);
-      await peer.acquireMic();                          // ask for the mic BEFORE ringing anyone
+      peer = await makePeer("customer", []);
+      const iceReq = callsApi.ice();                    // nothing rings yet; also tells us early if calling is switched off
+      iceReq.catch(() => {});                           // (handled below — avoids a warning if the mic prompt fails first)
+      await peer.acquireMic();                          // ask for the mic BEFORE ringing anyone — in parallel with the ICE fetch
+      peer.setIceServers((await iceReq).iceServers);
       if (cancelled()) { peer.close(); return; }
     } catch (err) {
       peer?.close();
@@ -284,9 +285,10 @@ export function CallsProvider({ area, nav, children }) {
     setUi({ role: "shop", phase: "preparing", id: call.id, call, peerName: call.peerName });
     let peer = null;
     try {
-      const ice = await callsApi.ice();
-      peer = await makePeer("shop", ice.iceServers);
-      await peer.acquireMic();
+      peer = await makePeer("shop", []);
+      const iceReq = callsApi.ice(); iceReq.catch(() => {});
+      await peer.acquireMic();                          // the mic prompt and the ICE fetch run together
+      peer.setIceServers((await iceReq).iceServers);
     } catch (err) {
       peer?.close();
       setUi(null); // back to the ringing screen — they can still decline, or fix the mic and answer

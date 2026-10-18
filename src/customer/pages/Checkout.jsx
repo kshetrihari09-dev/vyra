@@ -7,7 +7,9 @@ import { AddressCard } from "../components/AddressCard.jsx";
 import { ProductArt } from "../../components/shared/ProductArt.jsx";
 import { Icon, Check, Plus, Truck, Clock, FileText, ShieldCheck, CheckCircle2, Package, MapPin } from "../../components/shared/Icon.jsx";
 import { DELIVERY_OPTIONS, PAYMENT_METHODS, storeById } from "../../data/stores.js";
-import { PROVINCES, districtsFor, municipalitiesFor } from "../../data/locations.js";
+import { PROVINCES, districtsFor, municipalitiesFor, wardOptions, wardCountFor } from "../../data/locations.js";
+import { geoApi } from "../../services/api/geoApi.js";
+import { applyLocation } from "../../tracking/addressFromPin.js";
 import { validateAddress, normalizePhone } from "../../utils/validation.js";
 import { PhoneVerify } from "../../components/shared/PhoneVerify.jsx";
 import { distanceLabel, feeBasis, optionFee } from "../../utils/deliveryFee.js";
@@ -334,6 +336,23 @@ export function AddressForm({ value, onChange }) {
   const customPhone = !!phoneDigits && !!loginPhone && phoneDigits !== loginPhone;
   const addressText = [value.line1, value.line2].filter(Boolean).join(", ");
   const C = useC();
+  // Map pin -> province / district / municipality. `valueRef` is the latest form, so edits made while the lookup runs aren't lost.
+  const valueRef = useRef(value); valueRef.current = value;
+  const [locState, setLocState] = useState(null); // { busy } | { kind, text, needWard } | { kind: "error", text }
+  const fillFromPin = async (pin) => {
+    setLocState({ busy: true });
+    try {
+      const loc = await geoApi.locate(pin.lat, pin.lng);
+      const cur = valueRef.current;
+      if (cur.lat !== pin.lat || cur.lng !== pin.lng) return; // the pin moved again while we were looking — a newer lookup owns the result
+      const { value: next, status } = applyLocation(cur, loc);
+      if (next !== cur) onChange({ ...cur, provinceId: next.provinceId, districtId: next.districtId, municipalityId: next.municipalityId, ward: next.ward });
+      setLocState(status);
+    } catch {
+      setLocState({ kind: "error", text: "Couldn't read the area from this pin right now. Please choose your province, district and municipality." });
+    }
+  };
+  const wards = wardOptions(value.districtId, value.municipalityId);
   const field = (key, label, placeholder) => (
     <div key={key}>
       <label className="text-[11px] font-bold uppercase tracking-wide" style={{ color: C.muted }}>{label}</label>
@@ -377,9 +396,14 @@ export function AddressForm({ value, onChange }) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="text-[11px] font-bold uppercase tracking-wide" style={{ color: C.muted }}>Municipality</label>
-          {select(value.municipalityId, (id) => onChange({ ...value, municipalityId: id }), value.districtId ? "Select municipality" : "Choose district first", municipalities)}
+          {select(value.municipalityId, (id) => { const n = wardCountFor(value.districtId, id); const w = Number(value.ward); onChange({ ...value, municipalityId: id, ward: n && w > n ? "" : value.ward }); }, value.districtId ? "Select municipality" : "Choose district first", municipalities)}
         </div>
-        {field("ward", "Ward No.", "4")}
+        {wards.length > 0 ? (
+          <div>
+            <label className="text-[11px] font-bold uppercase tracking-wide" style={{ color: C.muted }}>Ward No.</label>
+            {select(value.ward, (w) => onChange({ ...value, ward: w }), `Select ward (1–${wards.length})`, wards.map((w) => ({ id: w, name: `Ward ${w}` })))}
+          </div>
+        ) : field("ward", "Ward No.", "4")}
       </div>
       {field("landmark", "Landmark (optional)", "Near Basantapur")}
       <div className="grid grid-cols-2 gap-3">
@@ -395,7 +419,9 @@ export function AddressForm({ value, onChange }) {
         </p>
       )}
       {field("instructions", "Delivery instructions", "Leave with concierge")}
-      <PinField value={value} addressText={addressText} onChange={(p) => onChange({ ...value, lat: p ? p.lat : null, lng: p ? p.lng : null })} />
+      <PinField value={value} addressText={addressText} onChange={(p) => { onChange({ ...value, lat: p ? p.lat : null, lng: p ? p.lng : null }); if (p) fillFromPin(p); else setLocState(null); }} />
+      {locState?.busy && <p className="text-xs -mt-1" role="status" style={{ color: C.muted }}>Reading the area from your pin…</p>}
+      {locState && !locState.busy && <InlineNotice tone={locState.kind === "ok" ? "ok" : "warn"}>{locState.text}</InlineNotice>}
     </div>
   );
 }

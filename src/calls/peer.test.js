@@ -80,6 +80,15 @@ describe("caller (customer) side", () => {
   });
 });
 
+describe("ICE servers supplied after creation", () => {
+  it("are used when the connection is created (the mic prompt and the fetch run in parallel)", async () => {
+    const e = fakeEnv(); const p = e.make("caller");
+    await p.acquireMic(); p.setIceServers([{ urls: ["stun:late:3478"] }]);
+    await p.makeOffer();
+    assert.deepEqual(e.log.pcs[0].cfg.iceServers, [{ urls: ["stun:late:3478"] }]);
+  });
+});
+
 describe("callee (shop) side", () => {
   it("answers an offer, flushing ICE that arrived first", async () => {
     const e = fakeEnv(); const p = e.make("callee"); await p.acquireMic();

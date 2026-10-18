@@ -9,6 +9,7 @@ import { storeById } from "../data/stores.js";
 import { fmt, timeLabel } from "../utils/format.js";
 import ActiveDelivery from "./ActiveDelivery.jsx";
 import { inFlightDelivery, nextAction, sharesLocation } from "./runFlow.js";
+import { MAX_RIDER_FIX_M } from "../tracking/geo.js";
 import { WorkspaceSwitcher } from "../workspaces/WorkspaceSwitcher.jsx";
 import { TONE } from "../theme.js";
 
@@ -106,6 +107,9 @@ export default function DeliveryOrders({ nav, params = {}, sync }) {
       // The rider's own map gets fixes more often than the server does, plus heading/speed (device-reported, local only — never sent) so the
       // map can turn with the rider. Directions is NOT re-requested for these: shouldRequestRoute still gates that by distance/time.
       if (now - lastLocal.current >= LOCAL_FIX_EVERY_MS) { lastLocal.current = now; setMyPos({ ...point, heading: pos.coords.heading, speed: pos.coords.speed }); }
+      // A coarse fix (Wi-Fi/cell guess, indoors, tunnel) can be hundreds of metres off and would make the rider jump on the customer's map.
+      // Keep showing it locally, but don't send it — the server drops these too.
+      if (Number.isFinite(point.accuracy) && point.accuracy > MAX_RIDER_FIX_M) return;
       if (now - lastSent.current < LOCATION_EVERY_MS) return;
       lastSent.current = now;
       // A ping is best-effort: it must never block the delivery. If the server says this account/run is no longer valid, re-check state.
