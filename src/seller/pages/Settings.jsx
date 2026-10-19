@@ -163,7 +163,7 @@ export default function Settings() {
           )}
           {tab === "delivery" && (
             <div>
-              <div className="mb-3"><Notice tone="warn"><strong>Minimum order</strong> is enforced at checkout for your items. The other delivery settings are saved but not used yet: delivery is currently priced from the distance to the Vyra store branch, not per shop.</Notice></div>
+              <div className="mb-3"><Notice tone="warn"><strong>Minimum order</strong> is enforced at checkout for your items. The other delivery settings are saved but not used yet: delivery is currently priced from the distance to the Vaspoor store branch, not per shop.</Notice></div>
               <Toggle label="Offer delivery" hint="Customers can have orders brought to them" on={d.delivery.available} onChange={(v) => nest("delivery", { available: v })} />
               <Toggle label="Offer pickup" hint="Customers can collect orders from your shop" on={d.delivery.pickup} onChange={(v) => nest("delivery", { pickup: v })} />
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-3">
@@ -183,7 +183,7 @@ export default function Settings() {
               <Toggle label="Card" on={d.payments.card} onChange={(v) => nest("payments", { card: v })} />
               <Toggle label="UPI / wallet" on={d.payments.upi} onChange={(v) => nest("payments", { upi: v })} />
               <Toggle label="Net banking" on={d.payments.netbanking} onChange={(v) => nest("payments", { netbanking: v })} />
-              <div className="mt-4 max-w-sm"><Field label="Payout method" hint="Set up with Vyra when your shop was approved. Contact support to change it."><Input value={seller.payoutMethod || "Not yet set up"} readOnly disabled /></Field></div>
+              <div className="mt-4 max-w-sm"><Field label="Payout method" hint="Set up with Vaspoor when your shop was approved. Contact support to change it."><Input value={seller.payoutMethod || "Not yet set up"} readOnly disabled /></Field></div>
             </div>
           )}
           {tab === "tax" && (

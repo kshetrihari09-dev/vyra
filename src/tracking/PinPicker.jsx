@@ -3,12 +3,20 @@ import { createPortal } from "react-dom";
 import { useC } from "../store/AppContext.jsx";
 import { PillButton, InlineNotice } from "../components/shared/ui.jsx";
 import { MapPin, X } from "../components/shared/Icon.jsx";
-import { DEFAULT_CENTER, MAP_TOKEN } from "./config.js";
+import { DEFAULT_CENTER } from "./config.js";
 import { useGeocode } from "./useGeocode.js";
 import { describeAccuracy, inNepal, locateAccurately, FAIR_M } from "./geo.js";
 import { searchPlaces } from "./places.js";
 
 const PinMap = lazy(() => import("./PinMap.jsx"));
+
+/** If the map's code can't be downloaded (offline, or a stale cached page after a new release) show a message, not a blank screen. */
+class MapBoundary extends React.Component {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(err) { console.warn("[map] the map failed to load:", err?.message || err); this.props.onError?.("The map couldn't load. Check your connection and reload the page, or use “Use my current location”."); }
+  render() { return this.state.failed ? null : this.props.children; }
+}
 
 /**
  * The device's position as a promise → { lat, lng, accuracy }. Called only from a button press, so the permission prompt always has an
@@ -37,6 +45,7 @@ export function PinPickerModal({ value, addressText, onConfirm, onClose }) {
   const [locating, setLocating] = useState(false);
   const [progress, setProgress] = useState(null);
   const [note, setNote] = useState(null);
+  const [mapError, setMapError] = useState("");
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
   const guess = useGeocode(addressText, { enabled: !value && !!addressText });
@@ -76,9 +85,20 @@ export function PinPickerModal({ value, addressText, onConfirm, onClose }) {
         <p className="font-extrabold" style={{ color: C.navy }}>Set delivery pin</p>
       </div>
       <div className="flex-1 relative min-h-0">
-        <Suspense fallback={<div className="absolute inset-0 animate-pulse" style={{ background: C.mint }} />}>
-          <PinMap className="absolute inset-0" point={point} focus={focus || (!value ? DEFAULT_CENTER : null)} onPoint={moved} />
-        </Suspense>
+        <MapBoundary onError={setMapError}>
+          <Suspense fallback={<div className="absolute inset-0 animate-pulse" style={{ background: C.mint }} />}>
+            <PinMap className="absolute inset-0" point={point} focus={focus || (!value ? DEFAULT_CENTER : null)} onPoint={moved} onError={setMapError} />
+          </Suspense>
+        </MapBoundary>
+        {mapError && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center p-6 text-center" style={{ background: C.bg }} role="alert">
+            <div className="max-w-xs space-y-3">
+              <MapPin size={28} style={{ color: C.primary }} className="mx-auto" aria-hidden="true" />
+              <p className="text-sm font-semibold" style={{ color: C.navy }}>{mapError}</p>
+              <PillButton onClick={locate} disabled={locating}>{locating ? "Locating…" : "Use my current location"}</PillButton>
+            </div>
+          </div>
+        )}
         <div className="absolute left-3 right-14 top-3 z-10">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search your street, area or landmark" aria-label="Search for a place"
             className="w-full rounded-full px-4 h-10 text-sm shadow outline-none" style={{ background: "#fff", color: C.navy, border: `1px solid ${C.border}` }} />
@@ -88,7 +108,7 @@ export function PinPickerModal({ value, addressText, onConfirm, onClose }) {
             </ul>
           )}
         </div>
-        {!point && <p className="absolute left-1/2 -translate-x-1/2 top-16 z-10 text-xs font-bold px-3 py-1.5 rounded-full bg-white shadow" style={{ color: C.navy }}>Tap the map where we should deliver</p>}
+        {!point && !mapError && <p className="absolute left-1/2 -translate-x-1/2 top-16 z-10 text-xs font-bold px-3 py-1.5 rounded-full bg-white shadow" style={{ color: C.navy }}>Tap the map where we should deliver</p>}
       </div>
       <div className="p-4 space-y-3 shrink-0" style={{ background: C.white, borderTop: `1px solid ${C.border}` }}>
         {error && <InlineNotice tone="warn">{error}</InlineNotice>}
@@ -132,7 +152,7 @@ export function PinField({ value, onChange, addressText }) {
       </div>
       <div className="flex flex-wrap gap-2 mt-3">
         <PillButton size="sm" variant="subtle" onClick={useMine} disabled={busy}>{busy ? (progress ? `Improving… ${describeAccuracy(progress).label}` : "Locating…") : "Use my current location"}</PillButton>
-        {MAP_TOKEN && <PillButton size="sm" variant="subtle" onClick={() => setOpen(true)}>{has ? "Adjust on map" : "Choose on map"}</PillButton>}
+        <PillButton size="sm" variant="subtle" onClick={() => setOpen(true)}>{has ? "Adjust on map" : "Choose on map"}</PillButton>
         {has && <button type="button" className="text-xs font-bold underline px-2" style={{ color: C.muted }} onClick={() => onChange(null)}>Remove</button>}
       </div>
       {error && <p className="text-xs mt-2 font-semibold" role="alert" style={{ color: "#c92a2a" }}>{error}</p>}

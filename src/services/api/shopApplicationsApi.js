@@ -5,7 +5,7 @@ const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 /** Server application DTO -> the UI's application shape (utils/shopApplication.js blankApplication). */
 export function applicationFromApi(a) {
   const history = [{ status: "submitted", at: a.submittedAt, actor: "Applicant", note: "Submitted for review" }];
-  if (a.decidedAt) history.push({ status: a.status, at: a.decidedAt, actor: "Vyra admin", note: a.rejectionReason || (a.status === "approved" ? "Application approved" : "") });
+  if (a.decidedAt) history.push({ status: a.status, at: a.decidedAt, actor: "Vaspoor admin", note: a.rejectionReason || (a.status === "approved" ? "Application approved" : "") });
   return {
     id: a.id, fromServer: true, status: a.status, submittedAt: a.submittedAt, createdAt: a.submittedAt,
     needsCorrection: a.needsCorrection, rejectionReason: a.rejectionReason, sellerId: a.sellerId, userId: a.userId,

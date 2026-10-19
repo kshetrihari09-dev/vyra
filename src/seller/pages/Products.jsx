@@ -127,7 +127,7 @@ export default function Products({ nav, params }) {
         </div>
         <DataTable columns={columns} rows={table.visible} rowKey={(r) => r.id} sort={table.sort} onSort={table.toggleSort}
           empty={<EmptyBlock icon="Package" title={listings.length ? "No products match" : "No products yet"}
-            message={listings.length ? "Try a different search or filter." : "Add your first product to start selling on Vyra."}
+            message={listings.length ? "Try a different search or filter." : "Add your first product to start selling on Vaspoor."}
             action={!listings.length && canWrite ? <Btn variant="primary" icon="Plus" onClick={() => setEditing("new")}>Add product</Btn> : null} />} />
         <Pagination page={table.page} pageSize={table.pageSize} total={table.total} onPage={table.setPage} />
       </Panel>

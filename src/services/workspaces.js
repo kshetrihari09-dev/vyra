@@ -1,4 +1,4 @@
-/* Workspaces — "which parts of Vyra may this account use, and where should it land?"
+/* Workspaces — "which parts of Vaspoor may this account use, and where should it land?"
 
    Pure functions only (no React, no storage, no network), so every rule is unit-tested in workspaces.test.js.
    It reads the SAME session the app already has (roles, permissions, shopOwnerSellerId) and the SAME access helpers

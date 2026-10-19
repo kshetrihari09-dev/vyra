@@ -2,7 +2,7 @@ import { useC } from "../../store/AppContext.jsx";
 import { TONE } from "../../theme.js";
 
 /* Seller surface tokens. Brand colours (primary / navy) come from the shared
-   theme so the two products stay recognisably Vyra; everything structural —
+   theme so the two products stay recognisably Vaspoor; everything structural —
    neutral canvas, hairline borders, tight radii — is the seller's own. */
 export function useS() {
   const C = useC();

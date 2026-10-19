@@ -1,4 +1,4 @@
-/* Product artwork is drawn, not fetched — keeps the original Vyra
+/* Product artwork is drawn, not fetched — keeps the original Vaspoor
    illustrated look and means zero image payload. The shape comes from the
    product's category, so new categories get sensible art for free. */
 import React, { memo, useState } from "react";

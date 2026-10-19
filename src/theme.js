@@ -1,4 +1,4 @@
-/* Design tokens — preserved from the original Vyra palette. */
+/* Design tokens — preserved from the original Vaspoor palette. */
 export const THEMES = {
   teal:   { label: "Teal",   primary: "#0FAF8F", primaryDark: "#0C9B7E", navy: "#063F50", mint: "#E9FAF6", bg: "#F8FCFB", white: "#FFFFFF", muted: "#71838C", border: "#E5F0EE", success: "#0FAF8F" },
   ocean:  { label: "Ocean",  primary: "#1E88C7", primaryDark: "#1670A3", navy: "#0B2B45", mint: "#E7F2FC", bg: "#F7FAFD", white: "#FFFFFF", muted: "#71828F", border: "#DCEAF6", success: "#1E88C7" },

@@ -53,7 +53,7 @@ function Identity({ name, status, sub, pulse }) {
         {pulse && <span className="vyra-ring absolute inset-0 rounded-full" style={{ background: C.primary, animation: "vyra-ring 1.8s ease-out infinite" }} />}
         <span className="relative w-24 h-24 rounded-full inline-flex items-center justify-center text-4xl font-extrabold" style={{ background: C.primary, color: "#fff" }}>{initial}</span>
       </div>
-      <h2 className="text-2xl font-extrabold leading-tight break-words max-w-[300px]">{name || "Vyra Call"}</h2>
+      <h2 className="text-2xl font-extrabold leading-tight break-words max-w-[300px]">{name || "Vaspoor Call"}</h2>
       <p className="text-sm font-medium" style={{ color: "rgba(255,255,255,.8)" }} role="status" aria-live="polite">{status}</p>
       {sub && <p className="text-xs max-w-[280px]" style={{ color: "rgba(255,255,255,.65)" }}>{sub}</p>}
     </div>
@@ -66,8 +66,8 @@ export default function CallOverlay({ nav }) {
   // ---- shop: a call is ringing
   if (incoming && !ui) {
     return (
-      <Shell label="Incoming Vyra Call">
-        <Identity name={incoming.peerName} status="Incoming Vyra Call" sub="A customer is calling your shop." pulse />
+      <Shell label="Incoming Vaspoor Call">
+        <Identity name={incoming.peerName} status="Incoming Vaspoor Call" sub="A customer is calling your shop." pulse />
         <div className="w-full">
           {incoming.micError && <p className="mb-4 text-xs rounded-xl px-3 py-2 inline-flex items-start gap-2 text-left" style={{ background: TONE.dangerBg, color: TONE.danger }}><AlertTriangle size={14} className="mt-0.5 shrink-0" /><span>{incoming.micError}</span></p>}
           <div className="flex items-center justify-center gap-14">
@@ -113,7 +113,7 @@ export default function CallOverlay({ nav }) {
   const live = ui.phase === "connected" || ui.phase === "reconnecting";
   const status = live ? `${ui.phase === "reconnecting" ? "Reconnecting… " : ""}${fmt(seconds)}` : STATUS[ui.phase] || "Connecting…";
   return (
-    <Shell label={`Vyra Call with ${ui.peerName || "shop"}`}>
+    <Shell label={`Vaspoor Call with ${ui.peerName || "shop"}`}>
       <Identity name={ui.peerName} status={status} pulse={!live}
         sub={ui.phase === "reconnecting" ? "Your connection is unstable. We're trying to restore the call." : ui.phase === "preparing" ? "Please choose Allow when your browser asks to use the microphone." : desk?.error && ui.role === "shop" ? desk.error : null} />
       <div className="w-full space-y-5">

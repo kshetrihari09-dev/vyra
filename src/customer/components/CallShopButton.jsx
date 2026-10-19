@@ -13,7 +13,7 @@ const LABEL = {
   unavailable: { text: "Calls unavailable", color: "#71838C" },
 };
 
-/** "Call shop" for one Vyra Shop. Shows the shop's REAL availability (from its live heartbeat); customers only. */
+/** "Call shop" for one Vaspoor Shop. Shows the shop's REAL availability (from its live heartbeat); customers only. */
 export default function CallShopButton({ sellerId, shopName, nav }) {
   const C = useC();
   const { session } = useApp();
@@ -47,8 +47,8 @@ export default function CallShopButton({ sellerId, shopName, nav }) {
   if (!eligible || !calls) return null;
   // Always show the row to a signed-in customer, with the real reason when calling isn't possible (never a silently missing button).
   const reason = !st ? "Checking availability…"
-    : st.failed ? "Couldn't check availability. Is the server updated with Vyra Call?"
-    : st.state === "unavailable" && st.callsEnabled === false ? (st.message || "Vyra Call is switched off on this server.")
+    : st.failed ? "Couldn't check availability. Is the server updated with Vaspoor Call?"
+    : st.state === "unavailable" && st.callsEnabled === false ? (st.message || "Vaspoor Call is switched off on this server.")
     : st.state === "unavailable" ? (st.message || "This shop can't take calls.")
     : null;
   const label = reason ? { text: reason, color: "#71838C" } : (LABEL[st.state] || LABEL.offline);
@@ -65,7 +65,7 @@ export default function CallShopButton({ sellerId, shopName, nav }) {
         <button type="button" disabled={!can} onClick={() => calls.startCall({ sellerId, shopName })}
           className="rounded-full font-semibold text-sm px-4 py-2.5 inline-flex items-center gap-2 shrink-0"
           style={{ background: can ? C.primary : "#C9D4D8", color: "#fff", opacity: can ? 1 : 0.7, cursor: can ? "pointer" : "not-allowed" }}>
-          <Phone size={15} /> Vyra Call
+          <Phone size={15} /> Vaspoor Call
         </button>
       </div>
       {st && !st.callable && st.state !== "unavailable" && nav && (

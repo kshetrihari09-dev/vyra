@@ -81,7 +81,7 @@ function StatusBanner({ app, nav }) {
       <div className="rounded-2xl p-5 text-center" style={{ background: TONE.okBg }}>
         <PartyPopper size={28} style={{ color: TONE.ok }} className="mx-auto mb-2" />
         <p className="font-extrabold text-base" style={{ color: TONE.ok }}>Congratulations!</p>
-        <p className="text-sm mt-1" style={{ color: TONE.ok }}>Your shop has been approved and is now live on Vyra.</p>
+        <p className="text-sm mt-1" style={{ color: TONE.ok }}>Your shop has been approved and is now live on Vaspoor.</p>
         <PillButton className="mt-4" onClick={() => nav("shopDashboard")}>Go to Shop Dashboard</PillButton>
       </div>
     );

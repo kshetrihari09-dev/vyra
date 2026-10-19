@@ -79,7 +79,7 @@ export default function PharmacistChat({ open, onClose, refs, onEmail }) {
         <div className="flex items-center gap-3">
           <span className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: C.mint }}><Stethoscope size={18} style={{ color: C.primary }} /></span>
           <div className="min-w-0 flex-1">
-            <p className="font-bold text-sm truncate" style={{ color: C.navy }}>{pharmacist || "Vyra pharmacists"}</p>
+            <p className="font-bold text-sm truncate" style={{ color: C.navy }}>{pharmacist || "Vaspoor pharmacists"}</p>
             <p className="text-xs flex items-center gap-1.5" style={{ color: C.muted }} role="status">
               <span className="w-2 h-2 rounded-full" style={{ background: statusDot }} aria-hidden="true" />
               {loading ? "Checking…" : online ? "Online now" : "Offline"}

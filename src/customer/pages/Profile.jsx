@@ -169,7 +169,7 @@ function BecomeRiderCard({ nav }) {
       </span>
       <span className="flex-1 text-left">
         <span className="block font-bold text-sm" style={{ color: C.navy }}>Become a Delivery Rider</span>
-        <span className="block text-xs" style={{ color: C.muted }}>Earn by delivering Vyra orders</span>
+        <span className="block text-xs" style={{ color: C.muted }}>Earn by delivering Vaspoor orders</span>
       </span>
       <ChevronRight size={17} style={{ color: C.muted }} />
     </button>
@@ -189,7 +189,7 @@ function MyShop({ nav }) {
         </span>
         <span className="flex-1 text-left">
           <span className="block font-bold text-sm" style={{ color: C.navy }}>Register Your Shop</span>
-          <span className="block text-xs" style={{ color: C.muted }}>Start selling on Vyra</span>
+          <span className="block text-xs" style={{ color: C.muted }}>Start selling on Vaspoor</span>
         </span>
         <ChevronRight size={17} style={{ color: C.muted }} />
       </button>

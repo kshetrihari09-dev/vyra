@@ -8,7 +8,7 @@ import { createRingtone } from "./ringtone.js";
 import CallOverlay from "./CallOverlay.jsx";
 
 /**
- * Vyra Call — one provider for the whole app, so a call survives page navigation and a shop hears incoming calls anywhere
+ * Vaspoor Call — one provider for the whole app, so a call survives page navigation and a shop hears incoming calls anywhere
  * in its dashboard. Two roles share this code and the server tells them apart from the signed-in account, never from here:
  *   • customer: startCall(shop) from the shop's "Call" button  → caller (makes the WebRTC offer)
  *   • shop owner, inside /shop/*: heartbeats availability, listens for calls → callee (answers)

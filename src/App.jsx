@@ -48,7 +48,7 @@ const ApplicantLayout = lazy(() => import("./seller/layout/ApplicantLayout.jsx")
 const ShopOnboarding = lazy(() => import("./seller/onboarding/Onboarding.jsx"));
 const ShopApplicationStatus = lazy(() => import("./seller/onboarding/ApplicationStatus.jsx"));
 
-const TITLES = { customer: "Vyra", shop: "Vyra Shop Manager", apply: "Register your shop · Vyra", staff: "Vyra Console", bare: "Vyra" };
+const TITLES = { customer: "Vaspoor", shop: "Vaspoor Shop Manager", apply: "Register your shop · Vaspoor", staff: "Vaspoor Console", bare: "Vaspoor" };
 
 /** Turn any (view, params) into the canonical route the URL describes. */
 function canonical(view, params) {
@@ -136,7 +136,7 @@ function Shell() {
       .then((dest) => { if (alive) replaceRoute(dest.view, dest.params); });
     return () => { alive = false; };
   }, [resolvingLogin]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { document.title = TITLES[area] || "Vyra"; }, [area]);
+  useEffect(() => { document.title = TITLES[area] || "Vaspoor"; }, [area]);
 
   const customerPage = () => {
     switch (view) {
@@ -203,7 +203,7 @@ function Shell() {
 
   return (
     <div className="min-h-screen" style={{ background: C.bg }}>
-      {/* Vyra Call lives above every screen so a call survives navigation, and the shop hears incoming calls anywhere in its dashboard. */}
+      {/* Vaspoor Call lives above every screen so a call survives navigation, and the shop hears incoming calls anywhere in its dashboard. */}
       <CallsProvider area={area} nav={nav}>
         {body}
       </CallsProvider>

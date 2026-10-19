@@ -125,7 +125,7 @@ function OrderDetail({ nav, orderId }) {
       <PageHeader back={back} title={<span className="inline-flex items-center gap-3 flex-wrap tnum">{order.number}<Pill tone={row.status.tone}>{row.status.label}</Pill></span>}
         description={`Placed ${dateTimeLabel(order.placedAt)}`} actions={<OrderActions row={row} size="md" />} />
       {row.soleSeller && isPrepaid(order) && !row.payment.paid && order.status !== "cancelled" && <div className="mb-4"><Notice tone="warn">Payment pending. You can confirm and prepare this order, but packing and dispatch unlock once the payment is confirmed.</Notice></div>}
-      {!row.soleSeller && <div className="mb-4"><Notice tone="info">This order also contains items from other sellers. You can see your items and their total; the order status is coordinated by Vyra, so it can't be changed here.</Notice></div>}
+      {!row.soleSeller && <div className="mb-4"><Notice tone="info">This order also contains items from other sellers. You can see your items and their total; the order status is coordinated by Vaspoor, so it can't be changed here.</Notice></div>}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="xl:col-span-2 space-y-4 min-w-0">

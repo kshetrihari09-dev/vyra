@@ -95,7 +95,7 @@ function OwnerStep({ app, save, onDone, session }) {
   if (session.signedIn && app.owner.mobileVerified) {
     return (
       <div className="space-y-4">
-        <InlineNotice tone="ok" icon={Check}>You're continuing as an existing Vyra account — no need to verify again.</InlineNotice>
+        <InlineNotice tone="ok" icon={Check}>You're continuing as an existing Vaspoor account — no need to verify again.</InlineNotice>
         <div className="rounded-2xl p-4" style={{ background: C.white, border: `1px solid ${C.border}` }}>
           <Row label="Name" value={app.owner.name} />
           <Row label="Mobile" value={app.owner.mobile} />
@@ -294,7 +294,7 @@ function BusinessStep({ app, save }) {
 function DocumentsStep({ app, save }) {
   return (
     <div className="space-y-4">
-      <SectionHeading title="Business documents" subtitle="Private documents — never shown publicly, only to you and Vyra admins." />
+      <SectionHeading title="Business documents" subtitle="Private documents — never shown publicly, only to you and Vaspoor admins." />
       {DOCUMENT_TYPES.map((dt) => (
         <FileUpload key={dt.id} label={dt.label} required={dt.required} value={app.documents.find((d) => d.type === dt.id)}
           onChange={(meta) => save({ ...app, documents: upsertDocument(app, dt.id, meta) })} />

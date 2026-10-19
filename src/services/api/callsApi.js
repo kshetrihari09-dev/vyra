@@ -1,6 +1,6 @@
 import { api } from "./client.js";
 
-/** Vyra Call. Which side of a call you are is decided by the server from your session — nothing here says "I am the shop". */
+/** Vaspoor Call. Which side of a call you are is decided by the server from your session — nothing here says "I am the shop". */
 export const callsApi = {
   ice: () => api.get("/calls/ice"),
   shopStatus: (sellerId) => api.get(`/shops/${encodeURIComponent(sellerId)}/call-status`),

@@ -1,16 +1,16 @@
 /* Company -> Store -> (Categories, Products, Inventory, Orders).
    Store-level stock lives on products keyed by these ids. */
-export const COMPANY = { id: "vyra", name: "Vyra Retail Ltd." };
+export const COMPANY = { id: "vyra", name: "Vaspoor Retail Ltd." };
 
 export const STORES = [
   {
-    id: "store-01", name: "Vyra Central", code: "CEN",
+    id: "store-01", name: "Vaspoor Central", code: "CEN",
     address: "12 Harbour Street, Central District", city: "Metro City",
     distanceKm: 1.2, etaMinutes: 18, open: true, hours: "7:00 AM – 11:00 PM",
     pharmacistOnDuty: true, otpRequired: true,
   },
   {
-    id: "store-02", name: "Vyra Riverside", code: "RIV",
+    id: "store-02", name: "Vaspoor Riverside", code: "RIV",
     address: "88 Riverside Walk, North Quarter", city: "Metro City",
     distanceKm: 4.6, etaMinutes: 35, open: true, hours: "8:00 AM – 10:00 PM",
     pharmacistOnDuty: false, otpRequired: true,

@@ -1,5 +1,5 @@
 /**
- * The WebRTC half of Vyra Call, with no React in it: microphone, RTCPeerConnection, ICE candidate buffering, ICE restart and
+ * The WebRTC half of Vaspoor Call, with no React in it: microphone, RTCPeerConnection, ICE candidate buffering, ICE restart and
  * cleanup. The caller (customer) makes the offer; the callee (shop) answers. Signaling messages travel through `onSignal`
  * (the server relays them) — this module never talks to the network itself, which also makes it testable with fakes.
  *

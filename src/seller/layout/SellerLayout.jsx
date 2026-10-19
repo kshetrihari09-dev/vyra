@@ -23,7 +23,7 @@ function Brand({ compact }) {
       </span>
       {!compact && (
         <span className="leading-none">
-          <span className="s-heading block text-[17px] font-bold text-white tracking-tight">Vyra</span>
+          <span className="s-heading block text-[17px] font-bold text-white tracking-tight">Vaspoor</span>
           <span className="block text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,.6)" }}>Shop manager</span>
         </span>
       )}
@@ -177,7 +177,7 @@ function PreviewSwitch({ full }) {
     <label className={`flex items-center gap-2 ${full ? "" : "hidden lg:flex"}`}>
       <span className="text-xs shrink-0" style={{ color: s.muted }}>Preview as</span>
       <Select value={seller.id} onChange={(e) => dispatch({ type: "SELLER_SWITCH", id: e.target.value })} aria-label="Preview as shop" className={full ? "" : "!w-48"}>
-        {[...sellers].sort((a, b) => (b.firstParty ? 1 : 0) - (a.firstParty ? 1 : 0)).map((x) => <option key={x.id} value={x.id}>{x.firstParty ? `${x.name} (Vyra)` : x.name}</option>)}
+        {[...sellers].sort((a, b) => (b.firstParty ? 1 : 0) - (a.firstParty ? 1 : 0)).map((x) => <option key={x.id} value={x.id}>{x.firstParty ? `${x.name} (Vaspoor)` : x.name}</option>)}
       </Select>
     </label>
   );
@@ -212,7 +212,7 @@ export default function SellerLayout({ view, nav, locked, children }) {
         <header className="sticky top-0 z-30" style={{ background: s.panel, borderBottom: `1px solid ${s.line}`, paddingTop: "env(safe-area-inset-top)" }}>
           <div className="h-14 px-3 md:px-6 flex items-center gap-2 md:gap-4">
             <span className="md:hidden"><IconBtn icon="Menu" label="Open menu" onClick={() => setDrawer(true)} /></span>
-            <span className="md:hidden s-heading font-bold text-[17px] truncate" style={{ color: s.side }}>Vyra <span className="font-medium text-xs" style={{ color: s.muted }}>Shop</span></span>
+            <span className="md:hidden s-heading font-bold text-[17px] truncate" style={{ color: s.side }}>Vaspoor <span className="font-medium text-xs" style={{ color: s.muted }}>Shop</span></span>
             <div className="hidden md:block flex-1"><TopSearch nav={nav} /></div>
             <div className="flex-1 md:hidden" />
             {!locked && <PreviewSwitch />}

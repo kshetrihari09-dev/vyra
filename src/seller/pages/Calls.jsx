@@ -9,7 +9,7 @@ const TONE_OF = { completed: "ok", missed: "danger", declined: "neutral", cancel
 const LABEL_OF = { completed: "Answered", missed: "Missed", declined: "Declined", cancelled: "Cancelled by customer", failed: "Failed" };
 const dur = (s) => (s == null ? "—" : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s`);
 
-/** Vyra Call desk: whether this shop is reachable, and its OWN call history (the server decides the shop — nothing here names one). */
+/** Vaspoor Call desk: whether this shop is reachable, and its OWN call history (the server decides the shop — nothing here names one). */
 export default function Calls() {
   const s = useS();
   const calls = useCalls();
@@ -30,7 +30,7 @@ export default function Calls() {
   const reachable = d?.online && d?.live && calls?.accepting;
   return (
     <div>
-      <PageHeader title="Vyra Calls" description="Voice calls from customers over the internet. Keep this dashboard open to receive them." />
+      <PageHeader title="Vaspoor Calls" description="Voice calls from customers over the internet. Keep this dashboard open to receive them." />
       <Panel title="Availability" className="mb-5">
         <div className="flex items-center gap-2 mb-1">
           <Pill tone={reachable ? "ok" : "neutral"}>{reachable ? "Customers can call you" : !calls?.accepting ? "Calls paused" : d?.error ? "Not reachable" : "Connecting…"}</Pill>

@@ -15,11 +15,11 @@ export default function ShopGate({ reason, seller, nav }) {
   const copy = {
     not_shop_owner: {
       icon: "Store", title: "This area is for shop owners",
-      body: app ? "Your shop application hasn't been approved yet. You'll get access to the shop dashboard as soon as it is." : "You're signed in as a customer. Register a shop to start selling on Vyra.",
+      body: app ? "Your shop application hasn't been approved yet. You'll get access to the shop dashboard as soon as it is." : "You're signed in as a customer. Register a shop to start selling on Vaspoor.",
     },
     pending: { icon: "Clock", title: `${seller?.name || "Your shop"} is awaiting approval`, body: "Listings and orders open up as soon as an administrator approves the shop." },
-    suspended: { icon: "AlertTriangle", title: `${seller?.name || "This shop"} is suspended`, body: "Selling is paused while the suspension is in place. Contact Vyra support to resolve it." },
-    inactive: { icon: "AlertTriangle", title: `${seller?.name || "This shop"} is not active`, body: "Contact Vyra support to reactivate it." },
+    suspended: { icon: "AlertTriangle", title: `${seller?.name || "This shop"} is suspended`, body: "Selling is paused while the suspension is in place. Contact Vaspoor support to resolve it." },
+    inactive: { icon: "AlertTriangle", title: `${seller?.name || "This shop"} is not active`, body: "Contact Vaspoor support to reactivate it." },
   }[reason] || {};
 
   return (

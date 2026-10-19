@@ -38,7 +38,7 @@ globalThis.fetch = async (url, opts = {}) => {
   if (u.pathname.startsWith("/api/pos/sales/by-key/")) return byKey ? byKey() : err(404, "SALE_NOT_FOUND", "none");
   throw new Error(`unstubbed ${method} ${url}`);
 };
-const SALE = (body, over = {}) => ({ id: "s1", number: "POS-202610100007", storeId: "store-01", storeName: "Vyra Central", cashierName: "Asha", customerName: body.customerName ?? null, paymentMethod: body.paymentMethod, placedAt: new Date().toISOString(),
+const SALE = (body, over = {}) => ({ id: "s1", number: "POS-202610100007", storeId: "store-01", storeName: "Vaspoor Central", cashierName: "Asha", customerName: body.customerName ?? null, paymentMethod: body.paymentMethod, placedAt: new Date().toISOString(),
   totals: { subtotal: 80, discount: 0, tax: 0, total: 80, ...(over.totals || {}) }, discount: body.discount || null, payment: { method: body.paymentMethod, received: body.amountReceived ?? 80, change: 20 },
   items: [{ productId: "coke", name: "Coke 500ml", qty: 1, unitPrice: 80, lineTotal: 80, discount: 0, tax: 0 }], ...over });
 
@@ -271,7 +271,7 @@ await T("Rx · the paper form tells the pharmacist exactly what's missing, then 
 }, PHARMACIST);
 await T("Rx · TEST: the sale carries the prescription (explicit fields only), the receipt prints the dispensing record, and the cart clears only after success", async () => {
   await scan("8900000000059"); await fillPaper(); await savePaper();
-  saleQueue.push((b) => ok({ sale: SALE(b, { storeName: "Vyra Central", prescription: { source: "in_store", patientName: "Sita Rai", prescriberName: "Dr. A. Sharma", prescriberRegNo: "NMC-1234", issuedOn: b.prescription.issuedOn, verifiedBy: "Asha" }, items: [{ productId: "amox", name: "Amoxicillin 500", qty: 1, unitPrice: 120, lineTotal: 120, discount: 0, tax: 0, prescriptionRequired: true }] }) }));
+  saleQueue.push((b) => ok({ sale: SALE(b, { storeName: "Vaspoor Central", prescription: { source: "in_store", patientName: "Sita Rai", prescriberName: "Dr. A. Sharma", prescriberRegNo: "NMC-1234", issuedOn: b.prescription.issuedOn, verifiedBy: "Asha" }, items: [{ productId: "amox", name: "Amoxicillin 500", qty: 1, unitPrice: 120, lineTotal: 120, discount: 0, tax: 0, prescriptionRequired: true }] }) }));
   await payAndComplete();
   const b = sales()[0].body;
   assert.deepEqual(Object.keys(b.prescription).sort(), ["issuedOn", "patientName", "prescriberName", "prescriberRegNo", "source", "verified"], "only API fields; no display extras");

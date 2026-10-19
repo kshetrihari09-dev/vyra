@@ -58,7 +58,7 @@ export default function Auth({ nav }) {
 
   const verifyCode = async (code) => {
     await auth.registerVerify({ challengeId: challenge.id, code }); // throws with the server's message on a bad code
-    toast("Welcome to Vyra");
+    toast("Welcome to Vaspoor");
     // No nav() here: the signed-in session makes the shell (App.jsx) resolve the one post-login destination — the deep link the user was
     // heading to, else their workspace — so there is a single decision and no stop at the storefront first.
   };

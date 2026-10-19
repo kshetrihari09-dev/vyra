@@ -51,7 +51,7 @@ export default function Admin({ nav, params }) {
           <WorkspaceSwitcher nav={nav} view="admin" compact />
           <button onClick={() => { dispatch({ type: "SELLER_SWITCH", id: (sellers.find((x) => x.firstParty) || {}).id || null }); nav("shopDashboard"); }}
             className="px-3.5 py-2 rounded-full text-xs font-bold flex items-center gap-1.5" style={{ background: C.primary, color: "#fff" }}>
-            <Icon name="Store" size={14} /> Vyra Shop
+            <Icon name="Store" size={14} /> Vaspoor Shop
           </button>
         </div>} />
       <div className="px-4 md:px-0">

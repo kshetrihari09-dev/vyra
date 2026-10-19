@@ -5,7 +5,7 @@ const round = (n) => Math.round(n * 100) / 100;
 
 /**
  * Splits a marketplace order into the slice that belongs to one seller.
- * An order can contain items from several sellers (and Vyra Retail);
+ * An order can contain items from several sellers (and Vaspoor Retail);
  * each seller only ever sees their own lines and their own subtotal.
  */
 export function sellerSlice(order, products, sellerId) {

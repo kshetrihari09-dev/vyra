@@ -41,7 +41,7 @@ function Workspace({ seller, locked, view, params, nav }) {
     isn't allowed to see it. */
 export default function SellerApp({ view, params, nav }) {
   const { session, shopApplications, sellers, currentSellerId, catalog, dispatch } = useApp();
-  // Admins always have Vyra Center in the shop list, even before the sellers API has answered (or if it failed).
+  // Admins always have Vaspoor Center in the shop list, even before the sellers API has answered (or if it failed).
   const needsVyra = isAdmin(session) && !sellers.some((x) => x.firstParty);
   useEffect(() => { if (needsVyra) dispatch({ type: "SELLERS_LOADED", sellers: SELLERS.filter((x) => x.firstParty) }); }, [needsVyra]); // eslint-disable-line react-hooks/exhaustive-deps
   const resolved = resolveSeller({ session, shopApplications, sellers, currentSellerId });

@@ -73,8 +73,8 @@ function ProductView({ nav, params, product }) {
   const sellerKey = sellerForProduct(product);
   const known = sellerById(sellerKey);
   const seller = product.sellerId
-    ? { ...(known || { firstParty: false, rating: null }), id: product.sellerId, name: product.sellerName || known?.name || "Vyra seller" }
-    : known || { id: sellerKey, name: "Vyra seller", firstParty: false, rating: null };
+    ? { ...(known || { firstParty: false, rating: null }), id: product.sellerId, name: product.sellerName || known?.name || "Vaspoor seller" }
+    : known || { id: sellerKey, name: "Vaspoor seller", firstParty: false, rating: null };
   const { price, mrp, discountPct } = priceOf(product, variantId);
   const stock = stockState(product, variantId, storeId);
   const cap = Math.max(maxAddable(product, variantId, storeId), 1);
@@ -106,7 +106,7 @@ function ProductView({ nav, params, product }) {
   };
 
   const share = async () => {
-    const text = `${product.name} — ${fmt(price)} on Vyra`;
+    const text = `${product.name} — ${fmt(price)} on Vaspoor`;
     try {
       if (navigator.share) await navigator.share({ title: product.name, text });
       else { await navigator.clipboard?.writeText(text); toast("Link copied"); }

@@ -1,8 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
 
 :root { color-scheme: light; }
 html, body { margin: 0; padding: 0; background: #F8FCFB; -webkit-font-smoothing: antialiased; }
-body { font-family: 'Poppins', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+body { font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif; }
 img, svg { max-width: 100%; }
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -76,3 +77,6 @@ input[type=range] { height: 4px; border-radius: 999px; background: #E5F0EE; }
 /* Live map: rider marker pulse */
 @keyframes vyra-pulse { 0% { transform: scale(.7); opacity: .45; } 100% { transform: scale(1.6); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { [aria-label="Delivery partner"] > span:first-child { animation: none !important; } }
+
+/* Utilities last, as before (the runtime CDN stylesheet used to be injected after this file), so they win over the rules above. */
+@tailwind utilities;

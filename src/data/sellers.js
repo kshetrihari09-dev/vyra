@@ -1,6 +1,6 @@
 /* ==========================================================================
    MARKETPLACE SELLERS
-   Vyra Retail is the first-party seller (owns the physical stores,
+   Vaspoor Retail is the first-party seller (owns the physical stores,
    handles medicines directly — 0% commission, always active). Everyone else
    is a third-party seller who lists products under their own brand(s) and
    gets paid out after commission.
@@ -11,7 +11,7 @@
 
 export const SELLERS = [
   {
-    id: "vyra-retail", name: "Vyra Center", firstParty: true,
+    id: "vyra-retail", name: "Vaspoor Center", firstParty: true,
     status: "active", commissionRate: 0, rating: 4.8, reviews: 12400,
     joinedAt: "2024-01-01", payoutMethod: "N/A — first-party", contactEmail: "ops@vyra.com",
     brands: ["gsk", "cipla", "sunpharma", "healthvit", "drtrust", "mothercare"],
