@@ -3,7 +3,6 @@ import { useApp, useC } from "../../store/AppContext.jsx";
 import { ProductArt } from "../../components/shared/ProductArt.jsx";
 import { FavoriteButton } from "../../components/shared/ui.jsx";
 import { Clock } from "../../components/shared/Icon.jsx";
-import { brandById } from "../../data/brands.js";
 import { storeById } from "../../data/stores.js";
 import { priceOf, defaultVariantId } from "../../utils/pricing.js";
 import { stockState } from "../../utils/inventory.js";
@@ -21,7 +20,6 @@ import { TONE } from "../../theme.js";
 export const ProductCard = memo(function ProductCard({ product, onOpen, variant }) {
   const { storeId, wishlist, commerce, toast, session, dispatch } = useApp();
   const C = useC();
-  const brand = brandById(product.brandId);
   const { price, mrp, discountPct } = priceOf(product);
   const stock = stockState(product, null, storeId);
   const out = stock.level === "out";
@@ -34,13 +32,12 @@ export const ProductCard = memo(function ProductCard({ product, onOpen, variant 
   /* Delivery time comes from the selected store's existing ETA; nothing is shown if it's unknown. */
   const eta = storeById(storeId)?.etaMinutes;
 
-  /* Size: the category's weight/size attribute, else the unit. Never invented. */
-  const size = [product.attributes?.weight, product.attributes?.volume, product.attributes?.size, product.attributes?.strength, product.attributes?.packSize]
-    .find((v) => v && v !== "—") || product.unit || "";
+  /* UI-only: keep the product's own name; do not prepend its brand. */
+  const title = product.name;
 
-  /* Don't repeat the brand when the product name already starts with it. */
-  const showBrand = brand?.name && !String(product.name).toLowerCase().startsWith(brand.name.toLowerCase());
-  const title = showBrand ? `${brand.name} ${product.name}` : product.name;
+  /* UI-only: show a real size/weight attribute when available, but never show the unit label (e.g. "piece"). */
+  const size = [product.attributes?.weight, product.attributes?.volume, product.attributes?.size, product.attributes?.strength, product.attributes?.packSize]
+    .find((v) => v && v !== "—") || "";
 
   const add = (e) => {
     e.stopPropagation();
