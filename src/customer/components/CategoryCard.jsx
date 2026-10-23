@@ -7,12 +7,13 @@ import { CategoryArt } from "../../components/shared/ProductArt.jsx";
 export const CategoryCard = memo(function CategoryCard({ category, onSelect, variant = "tile", count }) {
   const C = useC();
   if (variant === "chip") {
+    // Phone carousel tile (Home only): fixed-size pastel square + a label that wraps to at most two lines.
     return (
-      <button onClick={() => onSelect(category.id)} className="flex flex-col items-center gap-2 shrink-0 w-[74px]">
-        <span className="w-[62px] h-[62px] rounded-2xl flex items-center justify-center" style={{ background: category.tint }}>
-          <Icon name={category.icon} size={24} style={{ color: category.fg }} />
+      <button onClick={() => onSelect(category.id)} className="mchip flex flex-col items-center gap-1.5 shrink-0 w-[76px] active:scale-95 transition-transform">
+        <span className="w-[62px] h-[62px] rounded-[18px] flex items-center justify-center" style={{ background: category.tint, boxShadow: "inset 0 0 0 1px rgba(6,63,80,.04)" }}>
+          <Icon name={category.icon} size={26} style={{ color: category.fg }} />
         </span>
-        <span className="text-[11px] font-semibold text-center leading-tight" style={{ color: C.navy }}>{category.name}</span>
+        <span className="text-[11px] font-semibold text-center leading-[1.15] line-clamp-2 w-full break-words" style={{ color: C.navy }}>{category.name}</span>
       </button>
     );
   }

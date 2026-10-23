@@ -71,13 +71,13 @@ export function SearchBar({ value, onChange, onSubmit, onPick, autoFocus, placeh
           onChange={(e) => { onChange(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
-          className="flex-1 bg-transparent outline-none text-sm min-w-0"
+          className="flex-1 bg-transparent outline-none text-base md:text-sm min-w-0"
           style={{ color: C.navy }} aria-label="Search"
         />
         {value && (
           <button aria-label="Clear search" onClick={() => onChange("")} className="shrink-0"><X size={15} style={{ color: C.muted }} /></button>
         )}
-        <button aria-label="Scan barcode" onClick={scan} className="shrink-0 pl-1" style={{ borderLeft: `1px solid ${C.border}` }}>
+        <button aria-label="Scan barcode" onClick={scan} className="shrink-0 pl-1 flex items-center justify-center w-9 h-9 -mr-2 md:block md:w-auto md:h-auto md:mr-0" style={{ borderLeft: `1px solid ${C.border}` }}>
           <ScanLine size={17} style={{ color: C.primary }} />
         </button>
       </div>

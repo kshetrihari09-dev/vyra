@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { useApp, useC } from "../../store/AppContext.jsx";
+import React, { useEffect, useState } from "react";
+import { useC } from "../../store/AppContext.jsx";
 import { Page } from "../layout/CustomerLayout.jsx";
 import { SectionHeader, PillButton, Badge } from "../../components/shared/ui.jsx";
 import { HERO_SCENES, FloatingLeaves } from "../components/HeroScene.jsx";
@@ -7,15 +7,14 @@ import { CategoryCard } from "../components/CategoryCard.jsx";
 import { ProductRail, ProductCard } from "../components/ProductCard.jsx";
 import { ProductArt } from "../../components/shared/ProductArt.jsx";
 import { Icon, ArrowRight, Clock, Percent, Tag, Truck, ShieldCheck, Headphones, MapPin, Star } from "../../components/shared/Icon.jsx";
-import { topCategories, categoryTreeIds } from "../../data/categories.js";
 import { BRANDS } from "../../data/brands.js";
 import { STORES } from "../../data/stores.js";
-import { productById } from "../../data/products.js";
-import { sortProducts } from "../../utils/search.js";
 import { priceOf } from "../../utils/pricing.js";
-import { stockFor } from "../../utils/inventory.js";
 import { fmt } from "../../utils/format.js";
 import { TONE } from "../../theme.js";
+import { useIsMobile } from "../../utils/useMediaQuery.js";
+import { useHomeData } from "../useHomeData.js";
+import MobileHome from "./HomeMobile.jsx";
 
 /* Hero banner. Background is the active theme's gradient (primary -> primaryDark) — unchanged from before, so all four
    themes (teal / ocean / coral / violet) keep their colour. Slider state lives here so timer ticks don't re-render Home. */
@@ -97,43 +96,16 @@ function HeroBanner({ nav }) {
   );
 }
 
+/** Phones get their own layout (HomeMobile.jsx); tablet and desktop keep the original home below, unchanged. */
 export default function Home({ nav }) {
-  const { products, activeProducts, categories, storeId, myOrders: orders, recentlyViewed, toast } = useApp();
+  const isMobile = useIsMobile();
+  const data = useHomeData();
+  return isMobile ? <MobileHome nav={nav} data={data} /> : <DesktopHome nav={nav} data={data} />;
+}
+
+function DesktopHome({ nav, data }) {
   const C = useC();
-  const store = STORES.find((s) => s.id === storeId);
-
-  const tops = useMemo(() => topCategories(categories), [categories]);
-  const byTag = (tag) => activeProducts.filter((p) => (p.tags || []).includes(tag));
-
-  const sections = useMemo(() => ({
-    popular: byTag("popular").slice(0, 10),
-    flash: byTag("flash").slice(0, 10),
-    best: sortProducts(activeProducts, "bestselling").slice(0, 10),
-    fresh: sortProducts(activeProducts, "newest").slice(0, 10),
-    near: byTag("near").filter((p) => stockFor(p, null, storeId) > 0).slice(0, 10),
-  }), [activeProducts, storeId]);
-
-  /* "Recommended" is derived from what the customer has actually bought and
-     viewed — same categories, excluding things already seen. */
-  const recommended = useMemo(() => {
-    const seen = new Set(recentlyViewed);
-    const affinity = new Set();
-    orders.slice(0, 3).forEach((o) => o.items.forEach((i) => {
-      const p = productById(i.productId, products);
-      if (p) affinity.add(p.categoryId);
-    }));
-    recentlyViewed.forEach((id) => { const p = productById(id, products); if (p) affinity.add(p.categoryId); });
-    const roots = [...affinity].flatMap((id) => categoryTreeIds(id, categories));
-    return activeProducts.filter((p) => roots.includes(p.categoryId) && !seen.has(p.id)).sort((a, b) => b.rating - a.rating).slice(0, 10);
-  }, [orders, recentlyViewed, activeProducts, categories]);
-
-  const buyAgain = useMemo(() => {
-    const ids = [];
-    orders.forEach((o) => o.items.forEach((i) => { if (!ids.includes(i.productId)) ids.push(i.productId); }));
-    return ids.map((id) => productById(id, products)).filter(Boolean).slice(0, 10);
-  }, [orders, products]);
-
-  const viewed = recentlyViewed.map((id) => productById(id, products)).filter(Boolean);
+  const { store, tops, sections, recommended, buyAgain, viewed } = data;
   const open = (id) => nav("product", { productId: id });
 
   return (

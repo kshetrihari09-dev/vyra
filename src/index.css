@@ -78,5 +78,15 @@ input[type=range] { height: 4px; border-radius: 999px; background: #E5F0EE; }
 @keyframes vyra-pulse { 0% { transform: scale(.7); opacity: .45; } 100% { transform: scale(1.6); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { [aria-label="Delivery partner"] > span:first-child { animation: none !important; } }
 
+/* ---- Mobile home (rendered only below the md breakpoint, by customer/pages/HomeMobile.jsx) ---- */
+.mscroll { display: flex; gap: 10px; overflow-x: auto; overflow-y: hidden; padding: 2px 16px 6px; scroll-snap-type: x proximity; scroll-padding-inline: 16px;
+  -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; scrollbar-width: none; }
+.mscroll::-webkit-scrollbar { display: none; }
+.mrail { --mcard-w: clamp(140px, 41vw, 172px); }               /* ~2.2 cards visible from 320 px to 430 px, so the next card always peeks */
+.mrail > * { flex: 0 0 var(--mcard-w); width: var(--mcard-w); scroll-snap-align: start; }
+.mchip { scroll-snap-align: start; }
+.mdefer { content-visibility: auto; contain-intrinsic-size: auto 300px; }   /* below-the-fold sections aren't laid out until scrolled near */
+@media (prefers-reduced-motion: no-preference) { .mscroll { scroll-behavior: smooth; } }
+
 /* Utilities last, as before (the runtime CDN stylesheet used to be injected after this file), so they win over the rules above. */
 @tailwind utilities;

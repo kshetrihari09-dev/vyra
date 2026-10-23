@@ -18,7 +18,7 @@ import { TONE } from "../../theme.js";
  * Hierarchy: image (discount badge top-left, "Ad" top-right) → delivery time → name → size → price / ADD.
  * `wide` is kept for API compatibility but the compact layout is used everywhere.
  */
-export const ProductCard = memo(function ProductCard({ product, onOpen }) {
+export const ProductCard = memo(function ProductCard({ product, onOpen, variant }) {
   const { storeId, wishlist, commerce, toast, session, dispatch } = useApp();
   const C = useC();
   const brand = brandById(product.brandId);
@@ -50,6 +50,49 @@ export const ProductCard = memo(function ProductCard({ product, onOpen }) {
     toast(`${product.name} added to cart`);
   };
 
+  const toggleFav = () => {
+    if (!session.signedIn) { toast("Sign in to save favorites"); return; }
+    commerce.toggleWishlist(product.id).catch((err) => toast(err.message || "Couldn't update favorites", "danger"));
+  };
+
+  /* Phone carousels (customer/pages/HomeMobile.jsx): same data, same cart / wishlist / stock behaviour, laid out so every card is
+     the same height and nothing can collide at 320 px — the ADD button sits on the image, so the price gets the full card width. */
+  if (variant === "m") {
+    const stockTone = out ? TONE.danger : stock.level === "low" ? "#9A6B0B" : TONE.ok;
+    return (
+      <div onClick={() => onOpen(product.id)} role="button" tabIndex={0} onKeyDown={(e) => e.key === "Enter" && onOpen(product.id)}
+        className="vcard relative flex flex-col h-full min-w-0 cursor-pointer overflow-hidden"
+        style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 2px rgba(6,63,80,.04), 0 6px 14px -8px rgba(6,63,80,.16)" }}>
+        <div className="relative w-full" style={{ aspectRatio: "1 / .86", background: "#F6F8F8", overflow: "hidden" }}>
+          <ProductArt product={product} size={84} rounded={false} bg="#F6F8F8" />
+          {discountPct > 0 && (
+            <span className="absolute top-1.5 left-1.5 rounded-full px-1.5 leading-none font-extrabold text-white flex items-center" style={{ background: C.primary, fontSize: 10, height: 18 }}>{discountPct}% OFF</span>
+          )}
+          <div className="absolute top-1 right-1"><FavoriteButton floating={false} active={isFav} size={30} onClick={toggleFav} /></div>
+          {isAd && <span className="absolute bottom-1.5 left-1.5 px-1 rounded font-semibold" style={{ fontSize: 10, background: "rgba(255,255,255,.9)", color: C.muted }}>Ad</span>}
+          {out ? (
+            <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold" style={{ background: "rgba(255,255,255,.72)", color: TONE.danger }}>Out of stock</span>
+          ) : (
+            <button aria-label={variantCount ? `Choose options for ${product.name}` : `Add ${product.name} to cart`} onClick={add}
+              className="absolute bottom-1.5 right-1.5 flex items-center justify-center font-extrabold leading-none active:scale-95 transition-transform"
+              style={{ minWidth: 58, height: 32, padding: "0 10px", borderRadius: 10, fontSize: 12, background: C.white, color: C.primary, border: `1.5px solid ${C.primary}`, boxShadow: "0 3px 8px rgba(6,63,80,.14)" }}>
+              {variantCount ? "OPTIONS" : "ADD"}
+            </button>
+          )}
+        </div>
+        <div className="flex-1 flex flex-col min-w-0 px-2.5 pt-2 pb-2.5">
+          <div className="font-extrabold whitespace-nowrap leading-tight" style={{ color: C.navy, fontSize: 14 }}>{fmt(price)}</div>
+          <div className="line-through whitespace-nowrap leading-tight" style={{ color: C.muted, fontSize: 11, minHeight: 14 }}>{mrp > price ? fmt(mrp) : ""}</div>
+          <p className="font-semibold leading-snug line-clamp-2 mt-1" style={{ color: C.navy, fontSize: 12.5, minHeight: "2.75em" }}>{title}</p>
+          <p className="truncate mt-0.5" style={{ color: C.muted, fontSize: 11, minHeight: 15 }}>{[size, eta ? `${eta} min` : ""].filter(Boolean).join(" · ")}</p>
+          <p className="mt-1 flex items-center gap-1 font-semibold" style={{ color: stockTone, fontSize: 11 }}>
+            <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: stockTone }} />{stock.label}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div onClick={() => onOpen(product.id)} role="button" tabIndex={0}
       onKeyDown={(e) => e.key === "Enter" && onOpen(product.id)}
@@ -70,10 +113,7 @@ export const ProductCard = memo(function ProductCard({ product, onOpen }) {
           <span className="absolute top-1.5 right-1.5 px-1 rounded font-semibold" style={{ fontSize: 9, background: "rgba(255,255,255,.85)", color: C.muted }}>Ad</span>
         )}
         <div className="absolute bottom-1.5 right-1.5">
-          <FavoriteButton floating={false} active={isFav} size={26} onClick={() => {
-            if (!session.signedIn) { toast("Sign in to save favorites"); return; }
-            commerce.toggleWishlist(product.id).catch((err) => toast(err.message || "Couldn't update favorites", "danger"));
-          }} />
+          <FavoriteButton floating={false} active={isFav} size={26} onClick={toggleFav} />
         </div>
         {out && <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold" style={{ background: "rgba(255,255,255,.7)", color: TONE.danger }}>Out of stock</span>}
       </div>

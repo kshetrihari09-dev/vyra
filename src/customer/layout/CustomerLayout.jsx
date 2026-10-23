@@ -64,6 +64,36 @@ export function MobileHeader({ nav, view, query, setQuery }) {
   const C = useC();
   const role = roleOf(session, shopApplications);
   const multi = useWorkspaces(nav, view).multiple;
+  const pick = (s) => {
+    if (s.type === "product") nav("product", { productId: s.id });
+    else if (s.type === "category") nav("category", { categoryId: s.id });
+    else { setQuery(s.label); nav("search"); }
+  };
+
+  /* Home: logo + notifications / cart / account on one compact row, the delivery location under it, then the search bar. Only the
+     search bar stays pinned while scrolling (the two rows above slide away), so the header costs ~60 px instead of ~145 px. */
+  if (view === "home") {
+    const extras = multi || isAdmin(session) || role === "shop_owner";
+    return (
+      <header className="md:hidden sticky z-30 px-4 pt-2.5 pb-2.5" style={{ top: -82, background: C.bg, borderBottom: `1px solid ${C.border}` }}>
+        <div className="flex items-center gap-1.5 h-9">
+          <button type="button" onClick={() => nav("home")} aria-label="Vaspoor home" className="mr-auto min-w-0 text-left"><Logo size="sm" withTagline={false} hideTextBelow={extras} /></button>
+          {multi ? <WorkspaceSwitcher nav={nav} view={view} compact /> : (<>
+            {isAdmin(session) && <IconCircleButton icon={ShieldCheck} ariaLabel="Admin console" size={34} onClick={() => nav("admin")} />}
+            {role === "shop_owner" && <IconCircleButton icon={Store} ariaLabel="Shop dashboard" size={34} onClick={() => nav("shopDashboard")} />}
+          </>)}
+          <IconCircleButton icon={Bell} ariaLabel="Notifications" badge={unread} size={34} onClick={() => nav("notifications")} />
+          <IconCircleButton icon={ShoppingCart} ariaLabel="Cart" badge={cartCount} size={34} onClick={() => nav("cart")} />
+          <IconCircleButton icon={User} ariaLabel="Account" size={34} onClick={() => nav("profile")} />
+        </div>
+        <div className="mt-1.5 h-8 flex items-center min-w-0"><StoreSelector /></div>
+        <div className="mt-1.5">
+          <SearchBar value={query} onChange={setQuery} onSubmit={() => nav("search")} placeholder="Search products" onPick={pick} />
+        </div>
+      </header>
+    );
+  }
+
   return (
     <header className="md:hidden sticky top-0 z-30 px-4 pt-3 pb-3" style={{ background: C.bg, borderBottom: `1px solid ${C.border}` }}>
       <div className="flex items-center gap-2 mb-3">
@@ -76,12 +106,7 @@ export function MobileHeader({ nav, view, query, setQuery }) {
         <IconCircleButton icon={ShoppingCart} ariaLabel="Cart" badge={cartCount} size={36} onClick={() => nav("cart")} />
         <IconCircleButton icon={User} ariaLabel="Profile" size={36} onClick={() => nav("profile")} />
       </div>
-      <SearchBar value={query} onChange={setQuery} onSubmit={() => nav("search")} autoFocus={view === "search" && !query}
-        onPick={(s) => {
-          if (s.type === "product") nav("product", { productId: s.id });
-          else if (s.type === "category") nav("category", { categoryId: s.id });
-          else { setQuery(s.label); nav("search"); }
-        }} />
+      <SearchBar value={query} onChange={setQuery} onSubmit={() => nav("search")} autoFocus={view === "search" && !query} onPick={pick} />
     </header>
   );
 }
@@ -96,10 +121,12 @@ export function DesktopHeader({ nav, view, query, setQuery }) {
   return (
     <header className="hidden md:block sticky top-0 z-30" style={{ background: C.white, borderBottom: `1px solid ${C.border}` }}>
       <div className="w-full px-8">
-        <div className="flex items-center gap-6 py-3">
+        {/* min-w-0 lets the search box shrink on narrow tablets (the input's own width used to hold it at ~326 px and push Cart/Account off-screen);
+            the tighter gap applies below 1024 px only, so desktop is unchanged. */}
+        <div className="flex items-center gap-3 lg:gap-6 py-3">
           <button onClick={() => nav("home")}><Logo withTagline={false} /></button>
           <div className="shrink-0"><StoreSelector /></div>
-          <div className="flex-1 max-w-2xl">
+          <div className="flex-1 max-w-2xl min-w-0">
             <SearchBar value={query} onChange={setQuery} onSubmit={() => nav("search")}
               onPick={(s) => {
                 if (s.type === "product") nav("product", { productId: s.id });
@@ -151,21 +178,21 @@ export function BottomNav({ view, nav }) {
   const { cartCount } = useApp();
   const C = useC();
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 flex items-stretch px-2 pt-1.5 pb-[max(env(safe-area-inset-bottom),8px)]"
-      style={{ background: C.white, borderTop: `1px solid ${C.border}` }}>
+    <nav aria-label="Primary" className="md:hidden fixed bottom-0 left-0 right-0 z-30 flex items-stretch px-1.5 pt-1.5 pb-[max(env(safe-area-inset-bottom),6px)]"
+      style={{ background: C.white, borderTop: `1px solid ${C.border}`, boxShadow: "0 -8px 20px -12px rgba(6,63,80,.22)" }}>
       {TABS.map((t) => {
         const active = view === t.id;
         const Cmp = t.icon;
         return (
-          <button key={t.id} onClick={() => nav(t.id)} className="flex-1 flex flex-col items-center gap-1 py-1.5 relative">
-            <span className="relative">
+          <button key={t.id} onClick={() => nav(t.id)} aria-current={active ? "page" : undefined} className="flex-1 min-w-0 flex flex-col items-center gap-0.5 py-0.5 relative">
+            <span className="relative h-7 w-12 rounded-full flex items-center justify-center transition-colors" style={{ background: active ? C.mint : "transparent" }}>
               <Cmp size={20} style={{ color: active ? C.primary : C.muted }} />
               {t.id === "cart" && cartCount > 0 && (
-                <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center"
-                  style={{ background: "#E0546A", color: "#fff" }}>{cartCount}</span>
+                <span className="absolute -top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
+                  style={{ background: "#E0546A", color: "#fff" }}>{cartCount > 99 ? "99+" : cartCount}</span>
               )}
             </span>
-            <span className="text-[10px] font-bold" style={{ color: active ? C.primary : C.muted }}>{t.label}</span>
+            <span className="text-[10.5px] font-bold leading-none" style={{ color: active ? C.primary : C.muted }}>{t.label}</span>
           </button>
         );
       })}
