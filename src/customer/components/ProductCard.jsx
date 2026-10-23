@@ -61,14 +61,16 @@ export const ProductCard = memo(function ProductCard({ product, onOpen, variant 
         className="vcard relative flex flex-col h-full min-w-0 cursor-pointer overflow-hidden"
         style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 1px 2px rgba(6,63,80,.04), 0 6px 14px -8px rgba(6,63,80,.16)" }}>
         <div className="relative w-full" style={{ aspectRatio: "1 / .86", background: "#F6F8F8", overflow: "hidden" }}>
-          <ProductArt product={product} size={84} rounded={false} bg="#F6F8F8" />
-          {discountPct > 0 && (
+          <ProductArt product={product} size={120} rounded={false} bg="#F6F8F8" />
+          {!out && discountPct > 0 && (
             <span className="absolute top-1.5 left-1.5 rounded-full px-1.5 leading-none font-extrabold text-white flex items-center" style={{ background: C.primary, fontSize: 10, height: 18 }}>{discountPct}% OFF</span>
           )}
           <div className="absolute top-1 right-1"><FavoriteButton floating={false} active={isFav} size={30} onClick={toggleFav} /></div>
           {isAd && <span className="absolute bottom-1.5 left-1.5 px-1 rounded font-semibold" style={{ fontSize: 10, background: "rgba(255,255,255,.9)", color: C.muted }}>Ad</span>}
           {out ? (
-            <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold" style={{ background: "rgba(255,255,255,.72)", color: TONE.danger }}>Out of stock</span>
+            <span className="absolute inset-0 flex items-center justify-center px-2 text-center" style={{ background: "rgba(255,255,255,.78)" }}>
+              <span className="rounded-full px-2.5 py-1 font-extrabold uppercase tracking-wide" style={{ background: "#FFF0F0", color: TONE.danger, border: "1px solid #F5CACA", fontSize: 10 }}>Out of stock</span>
+            </span>
           ) : (
             <button aria-label={variantCount ? `Choose options for ${product.name}` : `Add ${product.name} to cart`} onClick={add}
               className="absolute bottom-1.5 right-1.5 flex items-center justify-center font-extrabold leading-none active:scale-95 transition-transform"
@@ -98,9 +100,9 @@ export const ProductCard = memo(function ProductCard({ product, onOpen, variant 
 
       <div className="vcard-img relative w-full" style={{ aspectRatio: "1 / 1", background: "#F6F8F8", borderRadius: "11px 11px 0 0", overflow: "hidden" }}>
         <div className="vcard-img-inner w-full h-full">
-          <ProductArt product={product} size={84} rounded={false} bg="#F6F8F8" />
+          <ProductArt product={product} size={120} rounded={false} bg="#F6F8F8" />
         </div>
-        {discountPct > 0 && (
+        {!out && discountPct > 0 && (
           <span className="absolute top-0 left-1.5 flex flex-col items-center justify-center leading-none font-extrabold text-white px-1.5 pt-1 pb-1.5"
             style={{ background: C.primary, fontSize: 10, borderRadius: "0 0 6px 6px", minWidth: 28 }}>
             <span>{discountPct}%</span><span style={{ fontSize: 8 }}>OFF</span>
@@ -112,7 +114,9 @@ export const ProductCard = memo(function ProductCard({ product, onOpen, variant 
         <div className="absolute bottom-1.5 right-1.5">
           <FavoriteButton floating={false} active={isFav} size={26} onClick={toggleFav} />
         </div>
-        {out && <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold" style={{ background: "rgba(255,255,255,.7)", color: TONE.danger }}>Out of stock</span>}
+        {out && <span className="absolute inset-0 flex items-center justify-center px-2 text-center" style={{ background: "rgba(255,255,255,.78)" }}>
+          <span className="rounded-full px-2.5 py-1 font-extrabold uppercase tracking-wide" style={{ background: "#FFF0F0", color: TONE.danger, border: "1px solid #F5CACA", fontSize: 10 }}>Out of stock</span>
+        </span>}
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 px-2 pt-1.5 pb-2">
@@ -123,18 +127,20 @@ export const ProductCard = memo(function ProductCard({ product, onOpen, variant 
         ) : <span style={{ height: 11 }} />}
 
         <p className="font-semibold leading-snug line-clamp-2 mt-0.5" style={{ color: C.navy, fontSize: 12.5, minHeight: "2.7em" }}>{title}</p>
-        <p className="truncate mt-0.5" style={{ color: C.muted, fontSize: 11 }}>{size}</p>
+        <p className="truncate mt-0.5" style={{ color: C.muted, fontSize: 11, minHeight: 15 }}>{size || " "}</p>
 
         <div className="mt-auto pt-2 flex items-end justify-between gap-1.5">
           <div className="min-w-0">
-            <div className="font-extrabold whitespace-nowrap" style={{ color: C.navy, fontSize: 13 }}>{fmt(price)}</div>
-            {mrp > price && <div className="line-through whitespace-nowrap" style={{ color: C.muted, fontSize: 10.5 }}>{fmt(mrp)}</div>}
+            <div className="font-extrabold whitespace-nowrap leading-tight" style={{ color: C.navy, fontSize: 13 }}>{fmt(price)}</div>
+            <div className="whitespace-nowrap leading-tight" style={{ color: C.muted, fontSize: 10.5, minHeight: 13 }}>
+              {mrp > price ? <span className="line-through">{fmt(mrp)}</span> : " "}
+            </div>
           </div>
           <button aria-label={variantCount ? `Choose options for ${product.name}` : `Add ${product.name} to cart`}
             onClick={add} disabled={out}
-            className="vcard-add shrink-0 flex flex-col items-center justify-center font-extrabold leading-none transition-colors active:scale-95 disabled:opacity-40"
-            style={{ border: `1.5px solid ${out ? C.border : C.primary}`, color: out ? C.muted : C.primary, borderRadius: 8, minWidth: 54, minHeight: 32, padding: "5px 8px", fontSize: 12, background: C.white }}>
-            ADD
+            className="vcard-add shrink-0 flex flex-col items-center justify-center font-extrabold leading-none transition-colors active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ border: `1.5px solid ${out ? C.border : C.primary}`, color: out ? C.muted : C.primary, borderRadius: 8, minWidth: 54, minHeight: 32, padding: "5px 8px", fontSize: 12, background: out ? "#F6F8F8" : C.white }}>
+            {out ? "SOLD OUT" : "ADD"}
             {variantCount > 0 && <span className="font-semibold mt-0.5" style={{ fontSize: 8.5 }}>{variantCount} option{variantCount > 1 ? "s" : ""}</span>}
           </button>
         </div>
