@@ -43,12 +43,9 @@ input[type=range] { height: 4px; border-radius: 999px; background: #E5F0EE; }
 }
 @media (min-width: 1280px) { .vrail { grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); } }
 
-.vcard { transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease; }
+.vcard { transition: box-shadow .15s ease, transform .15s ease; }
 .vcard-img-inner { transition: transform .2s ease; }
-.vcard-add { white-space: nowrap; }
 .vcard-add:hover:not(:disabled) { background: #E9FAF6 !important; }
-.vcard-add:focus-visible { outline: 2px solid #0FAF8F; outline-offset: 2px; }
-.vcard img { backface-visibility: hidden; }
 @media (hover: hover) and (min-width: 768px) {
   .vcard:hover { box-shadow: 0 4px 14px rgba(6,63,80,.10); transform: translateY(-2px); }
   .vcard:hover .vcard-img-inner { transform: scale(1.04); }
