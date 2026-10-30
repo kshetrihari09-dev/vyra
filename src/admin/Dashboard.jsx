@@ -54,7 +54,7 @@ export default function Admin({ nav, params }) {
             <Icon name="Store" size={14} /> Vaspoor Shop
           </button>
         </div>} />
-      <div className="px-4 md:px-0">
+      <div className="px-4 md:px-0 admin-dashboard">
         <div className="flex gap-2 overflow-x-auto no-scrollbar mb-5">
           {SECTIONS.filter((s) => !s.needs || s.needs(session)).map((s) => (
             <button key={s.id} onClick={() => setSection(s.id)}
@@ -129,7 +129,7 @@ function Overview({ nav, setSection }) {
       <div className="flex justify-end">
         <PillButton size="sm" onClick={() => nav("pos")}>Open POS</PillButton>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div className="admin-dashboard-kpis grid grid-cols-2 md:grid-cols-3 gap-3">
         {cards.map((c) => (
           <button key={c.label} onClick={() => c.go && (c.go === "pharmacy" ? nav("pharmacy") : setSection(c.go))}
             className="rounded-2xl p-4 text-left" style={{ background: C.white, border: `1px solid ${C.border}` }}>
@@ -143,7 +143,7 @@ function Overview({ nav, setSection }) {
         ))}
       </div>
 
-      <div className="grid md:grid-cols-2 gap-3">
+      <div className="admin-dashboard-panels grid md:grid-cols-2 gap-3">
         <div className="rounded-2xl p-4" style={{ background: C.white, border: `1px solid ${C.border}` }}>
           <p className="font-extrabold text-sm mb-3" style={{ color: C.navy }}>Stores</p>
           {STORES.map((s, i) => (

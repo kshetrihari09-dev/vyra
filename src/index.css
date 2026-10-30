@@ -90,3 +90,54 @@ input[type=range] { height: 4px; border-radius: 999px; background: #E5F0EE; }
 
 /* Utilities last, as before (the runtime CDN stylesheet used to be injected after this file), so they win over the rules above. */
 @tailwind utilities;
+
+
+/* ---- Seller dashboard: deliberate phone-first hierarchy ---- */
+.seller-dashboard { min-width: 0; }
+@media (max-width: 639px) {
+  .seller-dashboard { margin: -4px -2px 0; }
+  .seller-dashboard .dashboard-page-header { margin-bottom: 16px; }
+  .seller-dashboard .dashboard-page-header > div { gap: 10px; }
+  .seller-dashboard .dashboard-page-header > div > div:last-child { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .seller-dashboard .dashboard-page-header > div > div:last-child button { width: 100%; min-width: 0; height: 40px; }
+  .seller-dashboard .dashboard-kpis { gap: 9px; margin-bottom: 14px; }
+  .seller-dashboard .dashboard-kpis > * { padding: 12px !important; border-radius: 12px !important; min-height: 105px; box-shadow: 0 1px 2px rgba(20,45,55,.035); }
+  .seller-dashboard .dashboard-kpis > * > div:first-child span { font-size: 11px; letter-spacing: -.01em; }
+  .seller-dashboard .dashboard-kpis > * > div:first-child svg { width: 14px; height: 14px; }
+  .seller-dashboard .dashboard-kpis > * p:nth-child(2) { font-size: 21px; margin-top: 8px; }
+  .seller-dashboard .dashboard-kpis > * p:nth-child(3) { font-size: 10px; margin-top: 7px; }
+  .seller-dashboard .dashboard-pipeline { margin-bottom: 14px; border-radius: 12px !important; overflow: hidden; }
+  .seller-dashboard .dashboard-pipeline > header { padding: 12px 13px; }
+  .seller-dashboard .dashboard-pipeline-list { grid-template-columns: repeat(5, minmax(68px, 1fr)); overflow-x: auto; padding: 8px 8px 12px; scrollbar-width: none; }
+  .seller-dashboard .dashboard-pipeline-list::-webkit-scrollbar { display: none; }
+  .seller-dashboard .dashboard-pipeline-list li { min-width: 68px; }
+  .seller-dashboard .dashboard-pipeline-list li button { padding: 4px 2px; gap: 7px; }
+  .seller-dashboard .dashboard-pipeline-list li button > span:first-of-type { width: 36px; height: 36px; border-radius: 11px !important; }
+  .seller-dashboard .dashboard-pipeline-list li button > span:last-of-type { font-size: 10px; max-width: 66px; }
+  .seller-dashboard .dashboard-analytics, .seller-dashboard .dashboard-bottom { gap: 12px; margin-bottom: 12px; }
+  .seller-dashboard section { border-radius: 12px !important; }
+  .seller-dashboard section > header { padding: 12px 13px; align-items: flex-start; }
+  .seller-dashboard section > header h2 { font-size: 13px; }
+  .seller-dashboard section > header p { font-size: 11px; line-height: 1.4; }
+  .seller-dashboard section > header > div:last-child { max-width: 100%; }
+  .seller-dashboard section > header [role="group"] button { height: 30px; padding-left: 9px; padding-right: 9px; font-size: 11px; }
+  .seller-dashboard section .p-4 { padding: 13px; }
+}
+@media (max-width: 380px) {
+  .seller-dashboard .dashboard-kpis > * { padding: 10px !important; min-height: 100px; }
+  .seller-dashboard .dashboard-kpis > * p:nth-child(2) { font-size: 19px; }
+  .seller-dashboard .dashboard-page-header > div > div:last-child { grid-template-columns: 1fr; }
+}
+
+
+/* Admin overview: denser, calmer cards and easier thumb navigation on phones. */
+@media (max-width: 639px) {
+  .admin-dashboard { padding-left: 0 !important; padding-right: 0 !important; }
+  .admin-dashboard-kpis { gap: 9px !important; }
+  .admin-dashboard-kpis > button { padding: 12px !important; border-radius: 14px !important; min-height: 116px; box-shadow: 0 1px 2px rgba(20,45,55,.035); }
+  .admin-dashboard-kpis > button > span:first-child { width: 32px; height: 32px; margin-bottom: 9px; }
+  .admin-dashboard-kpis > button > p:first-of-type { font-size: 19px; line-height: 1.2; overflow-wrap: anywhere; }
+  .admin-dashboard-kpis > button > p:nth-of-type(2) { font-size: 11px; margin-top: 3px; }
+  .admin-dashboard-kpis > button > p:nth-of-type(3) { font-size: 10px; line-height: 1.35; margin-top: 2px; }
+  .admin-dashboard-panels { gap: 10px !important; }
+}

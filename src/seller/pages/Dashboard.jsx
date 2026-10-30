@@ -33,11 +33,11 @@ export default function Dashboard({ nav }) {
   ];
 
   return (
-    <div>
-      <PageHeader title="Dashboard" description={`How ${seller.name} is doing today`}
-        actions={<><Btn icon="Receipt" onClick={() => nav("shopOrders")}>View orders</Btn><Btn variant="primary" icon="Plus" onClick={() => nav("shopProducts", { new: "1" })}>Add product</Btn></>} />
+    <div className="seller-dashboard">
+      <div className="dashboard-page-header"><PageHeader title="Dashboard" description={`How ${seller.name} is doing today`}
+        actions={<><Btn icon="Receipt" onClick={() => nav("shopOrders")}>View orders</Btn><Btn variant="primary" icon="Plus" onClick={() => nav("shopProducts", { new: "1" })}>Add product</Btn></>} /></div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7 gap-3 mb-4">
+      <div className="dashboard-kpis grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7 gap-3 mb-4">
         <Metric label="Today's sales" icon="TrendingUp" value={fmt(kpi.todaySales)} delta={pctChange(kpi.todaySales, kpi.yesterdaySales)} hint={kpi.yesterdaySales ? `vs ${fmt(kpi.yesterdaySales)} yesterday` : "No sales yesterday"} onClick={() => nav("shopSales")} />
         <Metric label="Today's orders" icon="Receipt" value={kpi.todayOrders} delta={pctChange(kpi.todayOrders, kpi.yesterdayOrders)} hint={`${kpi.yesterdayOrders} yesterday`} onClick={() => nav("shopOrders")} />
         <Metric label="Pending orders" icon="Clock" value={kpi.pending} hint={kpi.pendingNew ? `${kpi.pendingNew} not yet confirmed` : "Awaiting fulfilment"} tone={kpi.pending ? "#C98A0B" : undefined} onClick={() => nav("shopOrders", { status: "open" })} />
@@ -48,8 +48,8 @@ export default function Dashboard({ nav }) {
       </div>
 
       {/* The shop-floor view: where every open order currently sits. */}
-      <Panel title="Order pipeline" subtitle="Open orders by stage — select one to see them" className="mb-4">
-        <ol className="grid grid-cols-5 gap-0">
+      <Panel className="dashboard-pipeline mb-4" title="Order pipeline" subtitle="Open orders by stage — select one to see them">
+        <ol className="dashboard-pipeline-list grid grid-cols-5 gap-0">
           {pipeline.map((st, i) => {
             const meta = SELLER_STATUSES.find((x) => x.key === st.key);
             return (
@@ -66,7 +66,7 @@ export default function Dashboard({ nav }) {
         </ol>
       </Panel>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
+      <div className="dashboard-analytics grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
         <Panel className="xl:col-span-2" title="Sales summary"
           subtitle={`${fmt(totals.revenue)} from ${totals.orders} orders in the last ${days} days`}
           actions={<Segmented label="Period" value={days} onChange={setDays} options={[{ id: 7, label: "7 days" }, { id: 14, label: "14 days" }, { id: 30, label: "30 days" }]} />}>
@@ -78,7 +78,7 @@ export default function Dashboard({ nav }) {
         </Panel>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+      <div className="dashboard-bottom grid grid-cols-1 xl:grid-cols-3 gap-4">
         <Panel className="xl:col-span-2" title="Recent orders" padded={false} actions={<Btn size="sm" variant="ghost" onClick={() => nav("shopOrders")}>View all</Btn>}>
           <DataTable columns={columns} rows={rows.slice(0, 6)} rowKey={(r) => r.id} onRowClick={(r) => nav("shopOrderDetails", { orderId: r.id })}
             empty={<EmptyBlock icon="Receipt" title="No orders yet" message="Orders containing your products will appear here." />} />
