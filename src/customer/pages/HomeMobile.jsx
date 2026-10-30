@@ -20,44 +20,84 @@ function MobileHero({ nav, productCount }) {
   const C = useC();
   const [idx, setIdx] = useState(0);
   const Scene = HERO_SCENES[idx];
+
   useEffect(() => {
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     if (reduce) return undefined;
-    const t = setInterval(() => setIdx((i) => (i + 1) % HERO_SCENES.length), 6000);
+    const t = setInterval(() => setIdx((i) => (i + 1) % HERO_SCENES.length), 6500);
     return () => clearInterval(t);
   }, []);
+
   const stores = STORES.length;
   const blurb = productCount > 0
-    ? `${productCount} products from ${stores} nearby store${stores === 1 ? "" : "s"}, with pharmacist-checked medicines.`
-    : `Products from ${stores} nearby store${stores === 1 ? "" : "s"}, with pharmacist-checked medicines.`;
+    ? `${productCount.toLocaleString()} products · ${stores} nearby stores`
+    : `${stores} nearby stores · pharmacist-checked medicines`;
+
   return (
-    <section aria-label="Featured" className="vyra-hero relative overflow-hidden rounded-[22px] pl-4 pr-3 pt-4 pb-4"
-      style={{ background: `linear-gradient(125deg, ${C.primary} 0%, ${C.primaryDark} 100%)`, boxShadow: "0 12px 26px -14px rgba(6,63,80,.5)" }}>
-      <div aria-hidden="true" className="absolute pointer-events-none -right-10 -top-16 w-60 h-60 rounded-full" style={{ background: "radial-gradient(circle, rgba(255,255,255,.24) 0%, rgba(255,255,255,0) 68%)" }} />
-      <div aria-hidden="true" className="absolute pointer-events-none -left-14 -bottom-20 w-44 h-44 rounded-full" style={{ border: "1px solid rgba(255,255,255,.14)" }} />
-      <div className="relative z-10 flex items-center gap-1">
-        <div className="flex-1 min-w-0">
-          <span className="inline-flex items-center gap-1.5 px-2.5 h-[22px] rounded-full text-[10.5px] font-bold tracking-wide" style={{ background: "rgba(255,255,255,.18)", color: "#fff", border: "1px solid rgba(255,255,255,.28)" }}>
-            <span className="w-1.5 h-1.5 rounded-full bg-white" aria-hidden="true" /> Fresh Deals for You
-          </span>
-          <h1 className="text-white font-extrabold text-[19px] min-[380px]:text-[21px] leading-[1.18] tracking-tight mt-2">
-            Groceries, beauty, tech &amp; medicine <span className="text-white/75">in one place.</span>
-          </h1>
-          <p className="text-white/85 text-[12px] leading-snug mt-1.5 line-clamp-3">{blurb}</p>
+    <section
+      aria-label="Featured"
+      className="vyra-hero relative isolate overflow-hidden rounded-[26px] min-h-[218px] px-4 pt-4 pb-4"
+      style={{
+        background: `linear-gradient(125deg, ${C.primary} 0%, ${C.primaryDark} 100%)`,
+        boxShadow: "0 12px 28px -16px rgba(6,63,80,.58)"
+      }}
+    >
+      {/* Decorative depth */}
+      <div aria-hidden="true" className="absolute -right-16 -top-20 h-64 w-64 rounded-full pointer-events-none"
+        style={{ background: "radial-gradient(circle, rgba(255,255,255,.25), transparent 68%)" }} />
+      <div aria-hidden="true" className="absolute -right-10 bottom-[-92px] h-56 w-56 rounded-full border border-white/15 pointer-events-none" />
+      <div aria-hidden="true" className="absolute left-0 top-0 h-full w-full pointer-events-none"
+        style={{ backgroundImage: "radial-gradient(rgba(255,255,255,.12) .8px, transparent 1px)", backgroundSize: "17px 17px", maskImage: "linear-gradient(90deg, #000, transparent 82%)" }} />
+
+      <div className="relative z-10 max-w-[78%]">
+        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-extrabold tracking-wide text-white"
+          style={{ background: "rgba(255,255,255,.17)", border: "1px solid rgba(255,255,255,.25)" }}>
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+          YOUR EVERYDAY MARKETPLACE
+        </span>
+
+        <h1 className="mt-3 text-[23px] min-[380px]:text-[25px] leading-[1.08] tracking-tight font-black text-white">
+          Everything you need,
+          <span className="block text-white/75">all in one place.</span>
+        </h1>
+
+        <p className="mt-2 max-w-[245px] text-[11.5px] leading-relaxed text-white/85">
+          Groceries, beauty, tech and trusted pharmacy essentials.
+        </p>
+
+        <div className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold text-white/85">
+          <span className="inline-block h-1 w-1 rounded-full bg-white/80" />
+          {blurb}
+        </div>
+
+        <div className="mt-4 flex items-center gap-3">
           <button type="button" onClick={() => nav("categories")}
-            className="vyra-hero-cta mt-3 inline-flex items-center gap-1.5 h-10 px-5 rounded-full bg-white font-extrabold text-[13.5px]"
-            style={{ color: C.primaryDark, boxShadow: "0 6px 14px rgba(0,0,0,.14)" }}>
-            Shop Now <ArrowRight size={15} aria-hidden="true" />
+            className="vyra-hero-cta inline-flex h-10 items-center gap-2 rounded-full bg-white px-4.5 text-[12.5px] font-extrabold active:scale-[.97] transition-transform"
+            style={{ color: C.primaryDark, boxShadow: "0 5px 14px rgba(0,0,0,.16)" }}>
+            Explore products <ArrowRight size={14} aria-hidden="true" />
+          </button>
+          <button type="button" onClick={() => nav("offers")}
+            className="text-[11.5px] font-bold text-white underline decoration-white/45 underline-offset-4">
+            View offers
           </button>
         </div>
-        <div className="shrink-0 self-end w-[31%] min-w-[92px] max-w-[148px] -mb-1 -mr-1" aria-hidden="true">
-          <div key={idx} className="vyra-settle drop-shadow-[0_10px_12px_rgba(0,0,0,.18)]"><Scene /></div>
+      </div>
+
+      {/* Illustration */}
+      <div className="pointer-events-none absolute z-[1] right-[-5px] bottom-[23px] w-[39%] max-w-[150px] opacity-95"
+        aria-hidden="true">
+        <div key={idx} className="vyra-settle drop-shadow-[0_12px_14px_rgba(0,0,0,.22)]">
+          <Scene />
         </div>
       </div>
-      <div className="relative z-10 flex items-center justify-center -mb-1.5 mt-1" role="group" aria-label="Choose slide">
+
+      <div className="absolute z-20 bottom-2 right-3 flex items-center rounded-full px-1 py-0.5"
+        style={{ background: "rgba(0,0,0,.12)" }} role="group" aria-label="Choose featured slide">
         {HERO_SCENES.map((_, i) => (
-          <button key={i} type="button" aria-label={`Show slide ${i + 1} of ${HERO_SCENES.length}`} aria-current={i === idx} onClick={() => setIdx(i)} className="p-2">
-            <span className="block h-1.5 rounded-full transition-all duration-300" style={{ width: i === idx ? 18 : 6, background: i === idx ? "#fff" : "rgba(255,255,255,.5)" }} />
+          <button key={i} type="button" aria-label={`Show slide ${i + 1} of ${HERO_SCENES.length}`}
+            aria-current={i === idx} onClick={() => setIdx(i)} className="p-1.5">
+            <span className="block h-1.5 rounded-full transition-all duration-300"
+              style={{ width: i === idx ? 17 : 6, background: i === idx ? "#fff" : "rgba(255,255,255,.55)" }} />
           </button>
         ))}
       </div>
