@@ -3,15 +3,19 @@ import { useApp, useC } from "../../store/AppContext.jsx";
 import { Page } from "../layout/CustomerLayout.jsx";
 import { PageHeader } from "../../components/shared/ui.jsx";
 import { ProductBrowser } from "../components/ProductBrowser.jsx";
-import { Icon, ChevronRight } from "../../components/shared/Icon.jsx";
+import { CategoryCard } from "../components/CategoryCard.jsx";
+import { ChevronRight } from "../../components/shared/Icon.jsx";
 import { resolveCategory, childrenOf, categoryPath } from "../../data/categories.js";
 
 export default function Category({ nav, params }) {
   const { categories } = useApp();
   const C = useC();
   const category = resolveCategory(params.categoryId, categories);
-  const subs = childrenOf(params.categoryId, categories);
   const path = categoryPath(params.categoryId, categories);
+  // The sub-navigation strip belongs to the top-level department, so it stays visible (with the current choice
+  // highlighted) while a subcategory is open instead of disappearing.
+  const strip = category?.root || category;
+  const siblings = strip ? childrenOf(strip.id, categories) : [];
 
   if (!category) return <Page><PageHeader title="Category not found" onBack={() => nav("categories")} /></Page>;
 
@@ -31,16 +35,13 @@ export default function Category({ nav, params }) {
 
       <PageHeader title={category.name} subtitle={category.description || `${category.productCount ?? 0} products`} onBack={() => nav("categories")} />
 
-      {subs.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 md:px-0 mb-4">
-          <button onClick={() => nav("category", { categoryId: category.id })}
-            className="shrink-0 px-3.5 py-2 rounded-full text-xs font-bold" style={{ background: C.primary, color: "#fff" }}>All</button>
-          {subs.map((s) => (
-            <button key={s.id} onClick={() => nav("category", { categoryId: s.id })}
-              className="shrink-0 px-3.5 py-2 rounded-full text-xs font-bold flex items-center gap-1.5"
-              style={{ background: C.white, color: C.navy, border: `1px solid ${C.border}` }}>
-              <Icon name={s.icon} size={13} style={{ color: s.fg }} /> {s.name}
-            </button>
+      {siblings.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 md:px-0 mb-4" role="group" aria-label="Subcategories">
+          <CategoryCard category={{ ...strip, id: strip.id, name: "All", icon: "LayoutGrid", tint: C.mint, fg: C.primary }} variant="pill"
+            active={params.categoryId === strip.id} onSelect={() => nav("category", { categoryId: strip.id })} />
+          {siblings.map((s) => (
+            <CategoryCard key={s.id} category={s} variant="pill" count={s.productCount}
+              active={params.categoryId === s.id} onSelect={(id) => nav("category", { categoryId: id })} />
           ))}
         </div>
       )}

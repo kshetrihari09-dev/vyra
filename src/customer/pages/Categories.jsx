@@ -21,8 +21,8 @@ export default function Categories({ nav }) {
           return (
             <section key={cat.id} className="rounded-2xl overflow-hidden" style={{ background: C.white, border: `1px solid ${C.border}` }}>
               <button onClick={() => nav("category", { categoryId: cat.id })} className="w-full flex items-center gap-3 p-4 text-left">
-                <span className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: cat.tint }}>
-                  <Icon name={cat.icon} size={22} style={{ color: cat.fg }} />
+                <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: cat.tint }}>
+                  <Icon name={cat.icon} size={22} strokeWidth={1.9} style={{ color: cat.fg }} />
                 </span>
                 <span className="flex-1 min-w-0">
                   <span className="block font-bold text-sm" style={{ color: C.navy }}>{cat.name}</span>
@@ -33,11 +33,8 @@ export default function Categories({ nav }) {
               {subs.length > 0 && (
                 <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 pb-4">
                   {subs.map((s) => (
-                    <button key={s.id} onClick={() => nav("category", { categoryId: s.id })}
-                      className="shrink-0 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5"
-                      style={{ background: s.tint, color: s.fg }}>
-                      <Icon name={s.icon} size={13} /> {s.name}
-                    </button>
+                    <CategoryCard key={s.id} category={s} variant="pill" count={s.productCount}
+                      onSelect={(id) => nav("category", { categoryId: id })} />
                   ))}
                 </div>
               )}

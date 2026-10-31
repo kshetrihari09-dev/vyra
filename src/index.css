@@ -88,6 +88,38 @@ input[type=range] { height: 4px; border-radius: 999px; background: #E5F0EE; }
 .mdefer { content-visibility: auto; contain-intrinsic-size: auto 300px; }   /* below-the-fold sections aren't laid out until scrolled near */
 @media (prefers-reduced-motion: no-preference) { .mscroll { scroll-behavior: smooth; } }
 
+/* ---- Category buttons (customer/components/CategoryCard.jsx) ----
+   Colours arrive as CSS variables set by the component (category tint/fg + active theme), so every theme keeps working. */
+.vcat { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--vcat-text); background: var(--vcat-bg);
+  border: 1px solid var(--vcat-border); border-radius: 14px; -webkit-tap-highlight-color: transparent;
+  transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
+.vcat-tile { padding: 8px 12px 8px 8px; min-height: 56px; }
+.vcat-chip { padding: 6px 12px 6px 6px; min-height: 44px; gap: 8px; border-radius: 12px; scroll-snap-align: start; }
+.vcat-pill { display: inline-flex; padding: 4px 12px 4px 4px; min-height: 32px; gap: 6px; border-radius: 999px; }
+.vcat-ico { background: var(--vcat-tint); color: var(--vcat-fg); transition: background-color .18s ease, color .18s ease, transform .2s ease; }
+.vcat-name { font-weight: 600; font-size: 13px; line-height: 1.2; color: var(--vcat-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vcat-chip .vcat-name, .vcat-pill .vcat-name { font-size: 12px; max-width: 148px; }
+.vcat-count { font-size: 11px; line-height: 1.2; margin-top: 2px; color: var(--vcat-muted); }
+.vcat-pill .vcat-count { margin: 0; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 999px; background: var(--vcat-tint); color: var(--vcat-fg); }
+.vcat:focus-visible { outline: 2px solid var(--vcat-fg); outline-offset: 2px; }
+.vcat:active { transform: scale(.97); }
+@media (hover: hover) {
+  .vcat:hover { background: color-mix(in srgb, var(--vcat-tint) 40%, var(--vcat-bg)); border-color: var(--vcat-fg);
+    box-shadow: 0 4px 14px -6px color-mix(in srgb, var(--vcat-fg) 55%, transparent); }
+  .vcat:hover .vcat-ico { transform: scale(1.1) rotate(-6deg); }
+}
+/* Selected: tinted surface, coloured border, solid badge with a white glyph. */
+.vcat[aria-current="true"] { background: var(--vcat-tint); border-color: var(--vcat-fg); box-shadow: 0 0 0 1px var(--vcat-fg); }
+.vcat[aria-current="true"] .vcat-ico { background: var(--vcat-fg); color: #fff; }
+.vcat[aria-current="true"] .vcat-name { color: var(--vcat-fg); font-weight: 700; }
+.vcat-pill[aria-current="true"] .vcat-count { background: var(--vcat-fg); color: #fff; }
+@media (prefers-reduced-motion: reduce) { .vcat, .vcat-ico { transition: none; } .vcat:hover .vcat-ico, .vcat:active { transform: none; } }
+
+/* Phone scroller: two rows of compact chips, scrolling sideways, so ~2x as many categories are visible as a single row. */
+.vcat-rail { display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, auto); grid-auto-columns: max-content; gap: 8px; overflow-x: auto; overflow-y: hidden;
+  padding: 2px 16px 6px; scroll-snap-type: x proximity; scroll-padding-inline: 16px; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; scrollbar-width: none; }
+.vcat-rail::-webkit-scrollbar { display: none; }
+
 /* Utilities last, as before (the runtime CDN stylesheet used to be injected after this file), so they win over the rules above. */
 @tailwind utilities;
 

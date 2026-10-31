@@ -137,10 +137,10 @@ function DesktopHome({ nav, data }) {
       {/* 2 — Shop by Category */}
       <section className="mb-5">
         <SectionHeader title="Shop by Category" subtitle="Every aisle, one app" onViewAll={() => nav("categories")} />
-        <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 md:px-0 md:hidden">
-          {tops.map((c) => <CategoryCard key={c.id} category={c} variant="chip" onSelect={(id) => nav("category", { categoryId: id })} />)}
+        <div className="vcat-rail md:hidden">
+          {tops.map((c) => <CategoryCard key={c.id} category={c} variant="chip" count={c.productCount} onSelect={(id) => nav("category", { categoryId: id })} />)}
         </div>
-        <div className="hidden md:grid grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="hidden md:grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2.5">
           {tops.map((c) => (
             <CategoryCard key={c.id} category={c} onSelect={(id) => nav("category", { categoryId: id })}
               count={c.productCount ?? 0} />

@@ -186,8 +186,8 @@ export default function MobileHome({ nav, data }) {
       {tops.length > 0 && (
         <section className="mb-4">
           <Heading title="Shop by Category" onViewAll={() => nav("categories")} />
-          <div className="mscroll">
-            {tops.map((c) => <CategoryCard key={c.id} category={c} variant="chip" onSelect={(id) => nav("category", { categoryId: id })} />)}
+          <div className="vcat-rail">
+            {tops.map((c) => <CategoryCard key={c.id} category={c} variant="chip" count={c.productCount} onSelect={(id) => nav("category", { categoryId: id })} />)}
           </div>
         </section>
       )}
