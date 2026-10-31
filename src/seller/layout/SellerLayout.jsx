@@ -23,8 +23,7 @@ function Brand({ compact }) {
       </span>
       {!compact && (
         <span className="leading-none">
-          <span className="s-heading block text-[17px] font-bold text-white tracking-tight">Vaspoor</span>
-          <span className="block text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,.6)" }}>Shop manager</span>
+          <span className="s-heading block text-[15px] font-bold text-white tracking-tight">Shop manager</span>
         </span>
       )}
     </div>
@@ -212,7 +211,7 @@ export default function SellerLayout({ view, nav, locked, children }) {
         <header className="sticky top-0 z-30" style={{ background: s.panel, borderBottom: `1px solid ${s.line}`, paddingTop: "env(safe-area-inset-top)" }}>
           <div className="h-14 px-3 md:px-6 flex items-center gap-2 md:gap-4">
             <span className="md:hidden"><IconBtn icon="Menu" label="Open menu" onClick={() => setDrawer(true)} /></span>
-            <span className="md:hidden s-heading font-bold text-[17px] truncate" style={{ color: s.side }}>Vaspoor <span className="font-medium text-xs" style={{ color: s.muted }}>Shop</span></span>
+            <span className="md:hidden s-heading font-bold text-[17px] truncate" style={{ color: s.side }}>Shop manager</span>
             <div className="hidden md:block flex-1"><TopSearch nav={nav} /></div>
             <div className="flex-1 md:hidden" />
             {!locked && <PreviewSwitch />}
